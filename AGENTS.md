@@ -1,27 +1,49 @@
 # EvolveX — Codex Agent Context
 
 ## What This Is
-Self-modifying agent evolution system. Three agents (Performer, Analyzer, Modifier) work in a loop:
+Self-modifying agent evolution system with two independent modes:
+
+**Classic mode** — Three agents (Performer, Analyzer, Modifier) in a loop:
 benchmark → analyze → propose mutation → sandbox validate → apply or rollback.
+
+**Arena mode** — Adversarial co-evolution across Piaget-inspired cognitive stages.
+Challenger generates problems → Solver attempts them → win/loss → 3 consecutive wins = stage up.
+Full spec: `arena_spec.md`
+
+## Cognitive Stages (Arena mode)
+| Stage | Name | Solver strategy |
+|---|---|---|
+| 0 | Reactive | First approach that seems reasonable |
+| 1 | Reflective | Weigh trade-offs, verify edge cases |
+| 2 | Strategic | Plan multi-step, consider complexity |
+| 3 | Meta-cognitive | Reason about reasoning strategy |
 
 ## Stack
 - Python 3.13 + FastAPI backend (`api.py`, `agents/`, `evolution/`)
 - Next.js dashboard (`dashboard/`) — real-time WebSocket event feed
-- OpenAI API for LLM calls in Analyzer and Modifier agents
+- OpenAI API for LLM calls in all agent types
 - venv at `.venv/` — always `source .venv/bin/activate` first
 
 ## Key Files
-- `api.py` — FastAPI server, WebSocket broadcast. Endpoints: POST start/stop/reset, GET status
+- `api.py` — FastAPI server, WebSocket broadcast. Classic + Arena endpoints
 - `agents/performer.py` — executes benchmark tasks, holds evolvable task_code
 - `agents/analyzer.py` — LLM identifies improvements
 - `agents/modifier.py` — LLM generates code mutations
-- `evolution/loop.py` — orchestrates one full cycle, yields event dicts
+- `agents/solver.py` — stage-aware Solver for Arena mode
+- `agents/challenger.py` — LLM challenge generator with difficulty escalation
+- `evolution/loop.py` — Classic mode: one full cycle, yields event dicts
+- `evolution/arena.py` — Arena mode: adversarial loop, yields arena event dicts
+- `evolution/stages.py` — CognitiveStage enum, graduation logic, stage prompt fragments
+- `evolution/challenges.py` — Challenge dataclass, validate_challenge, hardcoded fallbacks
 - `evolution/sandbox.py` — validates ALL mutations before applying (never skip)
 - `evolution/checkpoint.py` — save/restore before every mutation
 - `tests/test_sandbox.py` + `tests/test_fitness.py` — 13 passing tests
-- `codex_plan.md` — FULL execution plan: worktree tasks A/B/C, event schema, demo script
+- `codex_plan.md` — Classic mode execution plan
+- `arena_spec.md` — Arena mode full spec: architecture, event schema, build order
 
-## Event Schema (all events yielded from loop.py → broadcast via WS)
+## Event Schema
+
+### Classic mode (loop.py → api.py → WS)
 ```
 started           { cycles, baseline_ms }
 cycle_start       { cycle, of }
@@ -38,6 +60,21 @@ complete          { name, generation, fitness_score, mutation_count }
 stopped           { cycle }
 reset             {}
 error             { message }
+```
+
+### Arena mode (arena.py → api.py → WS)
+```
+arena_started         { solver_stage, difficulty, rounds }
+arena_round_start     { round, of, stage, difficulty }
+arena_challenge       { description, difficulty, hint }
+arena_solver_attempt  { stage, code_preview }
+arena_win             { round, consecutive_wins, stage }
+arena_loss            { round, reason, stage, consecutive_wins }
+arena_stage_up        { new_stage, new_stage_id, total_wins }
+arena_difficulty_up   { new_difficulty }
+arena_complete        { solver_stage, solver_stage_id, total_wins, total_losses, win_rate, ...solver.to_dict() }
+arena_stopped         { round }
+arena_reset           {}
 ```
 
 ## Rules
@@ -61,13 +98,21 @@ source .venv/bin/activate && python -m pytest tests/ -v
 ```
 
 ## Worktree Strategy (for parallel Codex development)
-See `codex_plan.md` for the full task breakdown. Three parallel tracks:
-- **wt-backend**: reset/stop endpoints (done), tests (done), any new API features
-- **wt-dashboard**: fitness chart (recharts), code diff panel, human-readable events, stop/reset buttons
-- **wt-evolution**: benchmark dataset size, pct_improvement (done), plateau detection
+See `codex_plan.md` for Classic mode task breakdown.
+See `arena_spec.md` for Arena mode full spec.
 
-## Codex Skills Mapping
+Three Arena tracks (parallel):
+- **wt-arena-core**: evolution/stages.py + evolution/challenges.py + evolution/arena.py
+- **wt-arena-agents**: agents/solver.py + agents/challenger.py
+- **wt-arena-ui**: api.py arena endpoints + dashboard/app/page.tsx Arena panel
+
+## Codex Skills Mapping (Classic)
 - Performer → benchmark skill (runs task, measures time)
 - Analyzer → analysis skill (LLM improvement suggestion)
 - Modifier → mutation skill (LLM code generation)
-Use worktrees to develop each skill in parallel isolation.
+
+## Codex Skills Mapping (Arena)
+- Challenger → adversarial challenge generation (difficulty escalation)
+- Solver → stage-aware code generation (prompt changes per stage)
+- evolution/arena.py → co-evolution orchestration (win/loss/stage-up)
+Use worktrees to develop each track in parallel isolation.

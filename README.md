@@ -28,9 +28,9 @@ cd evolvex
 python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Set API key
+# 3. Set API credentials
 cp .env.example .env
-# edit .env → add OPENAI_API_KEY
+# edit .env -> set OPENAI_API_KEY and OPENAI_MODEL
 
 # 4. Start backend
 uvicorn api:app --reload --port 8000

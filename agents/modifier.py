@@ -28,7 +28,7 @@ class Modifier(Agent):
         self,
         current_code: str,
         suggestion: str,
-        model: str = "gpt-4.1",
+        model: str,
     ) -> str:
         """Generate new task_code applying the Analyzer's suggestion."""
         user_msg = (

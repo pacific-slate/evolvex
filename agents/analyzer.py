@@ -19,7 +19,7 @@ class Analyzer(Agent):
         super().__init__(name="Analyzer")
         self._client = client
 
-    async def analyze(self, task_code: str, result: AgentResult, model: str = "gpt-4.1") -> str:
+    async def analyze(self, task_code: str, result: AgentResult, model: str) -> str:
         """Return a one-line improvement suggestion for the given code + result."""
         user_msg = (
             f"Code:\n```python\n{task_code}\n```\n\n"

@@ -21,6 +21,7 @@ async def run_cycle(
     analyzer: Analyzer,
     modifier: Modifier,
     baseline_ms: float,
+    model: str,
 ) -> AsyncIterator[dict]:
     """
     Run one evolution cycle. Yields event dicts consumed by the WebSocket broadcaster.
@@ -43,7 +44,7 @@ async def run_cycle(
         return
 
     # 2. Analyze — get improvement suggestion
-    suggestion = await analyzer.analyze(performer.task_code, result)
+    suggestion = await analyzer.analyze(performer.task_code, result, model=model)
     yield {"event": "analysis", "data": {"suggestion": suggestion}}
 
     # 3. Save checkpoint before mutation
@@ -56,7 +57,7 @@ async def run_cycle(
     yield {"event": "checkpoint", "data": {"generation": cp.generation}}
 
     # 4. Generate mutation
-    proposed_code = await modifier.generate_mutation(performer.task_code, suggestion)
+    proposed_code = await modifier.generate_mutation(performer.task_code, suggestion, model=model)
     yield {"event": "mutation_proposed", "data": {"code_preview": proposed_code[:200]}}
 
     # 5. Validate in sandbox

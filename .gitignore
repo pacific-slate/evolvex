@@ -34,3 +34,9 @@ checkpoints/*.json
 # Test artifacts
 tests/__pycache__/
 .pytest_cache/
+
+# Planning artifacts (internal tooling, not part of submission)
+*.plan.md
+
+# Event materials
+*.pdf

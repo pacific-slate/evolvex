@@ -1,8 +1,18 @@
 """
 FastAPI server.
+Classic mode:
 - POST /api/evolve/start  — begin evolution loop (N cycles)
-- GET  /api/evolve/status — current agent state
-- WS   /ws/evolution      — real-time event stream to dashboard
+- POST /api/evolve/stop
+- POST /api/evolve/reset
+- GET  /api/evolve/status
+
+Arena mode:
+- POST /api/arena/start   — begin adversarial co-evolution (N rounds)
+- POST /api/arena/stop
+- POST /api/arena/reset
+- GET  /api/arena/status
+
+WS /ws/evolution          — real-time event stream (both modes share this channel)
 """
 
 import asyncio
@@ -19,8 +29,11 @@ from pydantic import BaseModel
 from agents.performer import Performer
 from agents.analyzer import Analyzer
 from agents.modifier import Modifier
+from agents.solver import Solver
+from agents.challenger import Challenger
 from evolution.loop import run_cycle, _BENCHMARK_DATA
 from evolution.checkpoint import clear as clear_checkpoints
+from evolution.arena import run_arena
 
 load_dotenv()
 
@@ -28,22 +41,37 @@ load_dotenv()
 performer: Performer | None = None
 analyzer: Analyzer | None = None
 modifier: Modifier | None = None
+solver: Solver | None = None
+challenger: Challenger | None = None
 _ws_connections: list[WebSocket] = []
 _is_running = False
 _stop_requested = False
+_arena_running = False
+_arena_stop_flag: list[bool] = [False]
+
+
+def require_openai_model() -> str:
+    model = os.getenv("OPENAI_MODEL")
+    if not model:
+        raise RuntimeError("OPENAI_MODEL must be set in the environment.")
+    return model
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global performer, analyzer, modifier
+    global performer, analyzer, modifier, solver, challenger
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+    model = require_openai_model()
     performer = Performer()
     analyzer = Analyzer(client)
     modifier = Modifier(client)
-    # Store model preference on agents for use in loop
+    solver = Solver(client)
+    challenger = Challenger(client)
+    # Store model preference on agents for use in loop/arena
     analyzer._model = model  # type: ignore[attr-defined]
     modifier._model = model  # type: ignore[attr-defined]
+    solver._model = model    # type: ignore[attr-defined]
+    challenger._model = model  # type: ignore[attr-defined]
     yield
 
 
@@ -90,6 +118,7 @@ async def start_evolution(req: StartRequest):
     global _is_running
     if _is_running:
         return {"error": "evolution already running"}
+    model = require_openai_model()
 
     async def _run():
         global _is_running, _stop_requested
@@ -106,7 +135,7 @@ async def start_evolution(req: StartRequest):
                     await broadcast({"event": "stopped", "data": {"cycle": i + 1}})
                     return
                 await broadcast({"event": "cycle_start", "data": {"cycle": i + 1, "of": req.cycles}})
-                async for event in run_cycle(performer, analyzer, modifier, baseline_ms):  # type: ignore[arg-type]
+                async for event in run_cycle(performer, analyzer, modifier, baseline_ms, model=model):  # type: ignore[arg-type]
                     await broadcast(event)
 
             await broadcast({"event": "complete", "data": performer.to_dict()})  # type: ignore[union-attr]
@@ -146,4 +175,67 @@ async def get_status():
         "status": "running" if _is_running else "idle",
         "agent": performer.to_dict(),
         "current_code": performer.task_code,
+    }
+
+
+# ── Arena endpoints ──────────────────────────────────────────────────────────
+class ArenaStartRequest(BaseModel):
+    rounds: int = 10
+
+
+@app.post("/api/arena/start")
+async def start_arena(req: ArenaStartRequest):
+    global _arena_running, _arena_stop_flag
+    if _arena_running:
+        return {"error": "arena already running"}
+    model = require_openai_model()
+
+    async def _run():
+        global _arena_running, _arena_stop_flag
+        _arena_running = True
+        _arena_stop_flag = [False]
+        try:
+            async for event in run_arena(  # type: ignore[arg-type]
+                solver, challenger, req.rounds, model=model, stop_flag=_arena_stop_flag
+            ):
+                await broadcast(event)
+        finally:
+            _arena_running = False
+
+    asyncio.create_task(_run())
+    return {"status": "started", "rounds": req.rounds}
+
+
+@app.post("/api/arena/stop")
+async def stop_arena():
+    global _arena_stop_flag
+    if not _arena_running:
+        return {"error": "arena not running"}
+    _arena_stop_flag[0] = True
+    return {"status": "stopping"}
+
+
+@app.post("/api/arena/reset")
+async def reset_arena():
+    global solver, challenger
+    if _arena_running:
+        return {"error": "cannot reset while running — stop first"}
+    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    model = require_openai_model()
+    solver = Solver(client)
+    challenger = Challenger(client)
+    solver._model = model      # type: ignore[attr-defined]
+    challenger._model = model  # type: ignore[attr-defined]
+    await broadcast({"event": "arena_reset", "data": {}})
+    return {"status": "reset"}
+
+
+@app.get("/api/arena/status")
+async def get_arena_status():
+    if solver is None:
+        return {"status": "not_initialized"}
+    return {
+        "status": "running" if _arena_running else "idle",
+        "solver": solver.to_dict(),
+        "challenger": challenger.to_dict() if challenger else {},
     }
