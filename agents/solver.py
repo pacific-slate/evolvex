@@ -2,11 +2,14 @@
 Solver agent -- stage-aware problem solver.
 Attempts LLM-generated code solutions to challenges issued by the Challenger.
 Tracks consecutive wins and graduates through CognitiveStage levels.
+Supports an optional emergent protocol layer that decodes compressed challenge descriptions.
 """
 
+import json
 from openai import AsyncOpenAI
 from agents.base_agent import Agent
 from evolution.stages import CognitiveStage, STAGE_NAMES, STAGE_PROMPTS, should_graduate, next_stage
+from evolution.protocol import Protocol, PROPOSAL_PROMPT
 
 _SOLVER_BASE_SYSTEM = """You are a Python programmer solving algorithmic challenges.
 
@@ -17,18 +20,19 @@ Rules:
 - Imports allowed at module top level only (not inside run_task)
 - Return ONLY the raw Python code, no markdown fences, no explanation
 
-Strategy guidance: {stage_guidance}
+Strategy guidance: {stage_guidance}{decoder_block}
 """
 
 
 class Solver(Agent):
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: AsyncOpenAI, protocol: "Protocol | None" = None):
         super().__init__(name="Solver")
         self._client = client
         self.stage = CognitiveStage.REACTIVE
         self.consecutive_wins: int = 0
         self.total_wins: int = 0
         self.total_losses: int = 0
+        self._protocol = protocol
 
     @property
     def stage_name(self) -> str:
@@ -53,7 +57,13 @@ class Solver(Agent):
 
     async def attempt(self, challenge_description: str, model: str) -> str:
         """Generate a run_task(data) solution for the given challenge description."""
-        system = _SOLVER_BASE_SYSTEM.format(stage_guidance=STAGE_PROMPTS[self.stage])
+        decoder_block = ""
+        if self._protocol is not None:
+            decoder_block = self._protocol.get_decoder_prompt(self.stage)
+        system = _SOLVER_BASE_SYSTEM.format(
+            stage_guidance=STAGE_PROMPTS[self.stage],
+            decoder_block=decoder_block,
+        )
         response = await self._client.chat.completions.create(
             model=model,
             messages=[
@@ -63,7 +73,34 @@ class Solver(Agent):
             max_tokens=400,
             temperature=0.2,
         )
-        return response.choices[0].message.content.strip()
+        return (response.choices[0].message.content or "").strip()
+
+    async def propose_vocabulary(
+        self, challenge_desc: str, _code: str, round_num: int, model: str
+    ) -> list[dict]:
+        """
+        Called when Solver wins. Propose 1-3 vocabulary tokens based on the solved challenge.
+        Uses a small LLM call (max_tokens=100). Returns list of {token, meaning} dicts.
+        """
+        if self._protocol is None:
+            return []
+        prompt = PROPOSAL_PROMPT.format(
+            vocab_summary=self._protocol.vocab_summary(),
+            round_num=round_num,
+            challenge_desc=challenge_desc[:200],
+        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.8,
+                response_format={"type": "json_object"},
+            )
+            data = json.loads((response.choices[0].message.content or "").strip())
+            return data.get("proposals", [])
+        except Exception:
+            return []
 
     def to_dict(self) -> dict:
         base = super().to_dict()

@@ -26,8 +26,24 @@ type SolverState = {
   generation: number;
 };
 
-const API = "http://localhost:8000";
-const WS_URL = "ws://localhost:8000/ws/evolution";
+type ProtocolEntry = {
+  token: string;
+  meaning: string;
+  proposed_by: "solver" | "challenger";
+  round_created: number;
+  usage_count: number;
+};
+
+type ProtocolState = {
+  vocabulary: ProtocolEntry[];
+  vocab_size: number;
+  utilization_rate: number;
+  round_history: { round: number; compression_ratio: number; vocab_size: number }[];
+};
+
+const IS_REMOTE = typeof window !== "undefined" && window.location.hostname !== "localhost";
+const API = IS_REMOTE ? "https://evolvex-api.pacslate.com" : "http://localhost:8000";
+const WS_URL = IS_REMOTE ? "wss://evolvex-api.pacslate.com/ws/evolution" : "ws://localhost:8000/ws/evolution";
 const STAGE_LABELS = ["Reactive", "Reflective", "Strategic", "Meta-cognitive"];
 
 const EVENT_COLORS: Record<string, string> = {
@@ -57,13 +73,53 @@ const EVENT_COLORS: Record<string, string> = {
   arena_complete: "text-green-300",
   arena_stopped: "text-slate-500",
   arena_reset: "text-slate-600",
+  // Protocol events
+  arena_protocol_entry: "text-cyan-300",
+  arena_protocol_used: "text-teal-400",
+  arena_protocol_consolidate: "text-amber-400",
+  arena_protocol_snapshot: "text-slate-500",
 };
+
+/** Inline SVG sparkline for compression ratio history */
+function CompressionSparkline({ history }: { history: { compression_ratio: number }[] }) {
+  if (history.length < 2) {
+    return <span className="text-slate-600 text-xs">—</span>;
+  }
+  const W = 80;
+  const H = 24;
+  const pad = 2;
+  const pts = history.slice(-20);
+  const minV = Math.min(...pts.map((p) => p.compression_ratio));
+  const maxV = Math.max(...pts.map((p) => p.compression_ratio), minV + 0.01);
+  const points = pts
+    .map((p, i) => {
+      const x = pad + (i / (pts.length - 1)) * (W - pad * 2);
+      const y = pad + ((maxV - p.compression_ratio) / (maxV - minV)) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  return (
+    <svg width={W} height={H} className="inline-block">
+      <polyline points={points} fill="none" stroke="#2dd4bf" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Color for a compression ratio value: 1.0=slate, <0.3=emerald */
+function compressionColor(ratio: number): string {
+  if (ratio <= 0.3) return "text-emerald-400";
+  if (ratio <= 0.5) return "text-teal-400";
+  if (ratio <= 0.7) return "text-yellow-400";
+  return "text-slate-400";
+}
 
 export default function Home() {
   const [mode, setMode] = useState<"classic" | "arena">("classic");
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
   const [agent, setAgent] = useState<AgentState | null>(null);
   const [solver, setSolver] = useState<SolverState | null>(null);
+  const [protocol, setProtocol] = useState<ProtocolState | null>(null);
   const [running, setRunning] = useState(false);
   const [arenaRunning, setArenaRunning] = useState(false);
   const [cycles, setCycles] = useState(5);
@@ -100,10 +156,25 @@ export default function Home() {
         if (ev.event === "arena_started") setArenaRunning(true);
         if (ev.event === "arena_stopped") setArenaRunning(false);
         if (ev.event === "arena_win" || ev.event === "arena_stage_up" || ev.event === "arena_loss") {
-          // Refresh solver state from arena status endpoint
           fetch(`${API}/api/arena/status`)
             .then((r) => r.json())
-            .then((d) => { if (d.solver) setSolver(d.solver); })
+            .then((d) => {
+              if (d.solver) setSolver(d.solver);
+              if (d.protocol) setProtocol(d.protocol as ProtocolState);
+            })
+            .catch(() => null);
+        }
+
+        // Protocol events — update protocol state inline
+        if (
+          ev.event === "arena_protocol_entry" ||
+          ev.event === "arena_protocol_consolidate" ||
+          ev.event === "arena_protocol_used" ||
+          ev.event === "arena_protocol_snapshot"
+        ) {
+          fetch(`${API}/api/arena/protocol`)
+            .then((r) => r.json())
+            .then((d) => setProtocol(d as ProtocolState))
             .catch(() => null);
         }
       };
@@ -124,6 +195,7 @@ export default function Home() {
       if (classic?.agent) setAgent(classic.agent);
       if (classic?.status === "running") setRunning(true);
       if (arena?.solver) setSolver(arena.solver);
+      if (arena?.protocol) setProtocol(arena.protocol as ProtocolState);
       if (arena?.status === "running") setArenaRunning(true);
     });
   }, []);
@@ -158,9 +230,15 @@ export default function Home() {
 
   const resetArena = async () => {
     setSolver(null);
+    setProtocol(null);
     setEvents([]);
     await fetch(`${API}/api/arena/reset`, { method: "POST" });
   };
+
+  const latestCompression =
+    protocol?.round_history?.length
+      ? protocol.round_history[protocol.round_history.length - 1].compression_ratio
+      : null;
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 font-mono p-6 flex flex-col gap-6">
@@ -293,8 +371,8 @@ export default function Home() {
                     : "Max stage reached"}
                 </span>
               </div>
-              {/* Stats row */}
-              <div className="grid grid-cols-4 gap-3 pt-1">
+              {/* Stats row — 5 cards including compression */}
+              <div className="grid grid-cols-5 gap-3 pt-1">
                 {[
                   { label: "W / L", value: `${solver.total_wins} / ${solver.total_losses}` },
                   {
@@ -312,7 +390,56 @@ export default function Home() {
                     <p className="text-white text-lg font-bold">{value}</p>
                   </div>
                 ))}
+                {/* Compression stat card */}
+                <div>
+                  <p className="text-slate-500 text-xs uppercase tracking-widest mb-0.5">Compression</p>
+                  {latestCompression !== null ? (
+                    <div className="flex items-center gap-2">
+                      <p className={`text-lg font-bold ${compressionColor(latestCompression)}`}>
+                        {Math.round(latestCompression * 100)}%
+                      </p>
+                      <CompressionSparkline history={protocol?.round_history ?? []} />
+                    </div>
+                  ) : (
+                    <p className="text-slate-600 text-lg font-bold">—</p>
+                  )}
+                </div>
               </div>
+            </div>
+          )}
+
+          {/* Protocol vocabulary panel */}
+          {protocol && protocol.vocabulary.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-slate-500 text-xs uppercase tracking-widest">
+                  Emergent Protocol — {protocol.vocab_size} tokens
+                  {protocol.utilization_rate > 0 && (
+                    <span className="text-slate-600 ml-2">
+                      ({Math.round(protocol.utilization_rate * 100)}% utilized)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {protocol.vocabulary.map((entry) => (
+                  <div
+                    key={entry.token}
+                    title={`${entry.meaning} — proposed by ${entry.proposed_by} (round ${entry.round_created}, used ${entry.usage_count}×)`}
+                    className={`px-2 py-0.5 rounded text-xs font-bold cursor-default border transition-opacity ${
+                      entry.proposed_by === "challenger"
+                        ? "bg-yellow-950 text-yellow-300 border-yellow-800"
+                        : "bg-purple-950 text-purple-300 border-purple-800"
+                    } ${entry.usage_count === 0 ? "opacity-50" : "opacity-100"}`}
+                  >
+                    {entry.token}
+                  </div>
+                ))}
+              </div>
+              <p className="text-slate-700 text-xs">
+                <span className="text-yellow-800">■</span> challenger &nbsp;
+                <span className="text-purple-800">■</span> solver &nbsp;·&nbsp; hover for meaning
+              </p>
             </div>
           )}
 
@@ -373,12 +500,19 @@ export default function Home() {
             <span className="text-slate-600 shrink-0 text-xs pt-0.5">
               {new Date(ev.ts).toLocaleTimeString()}
             </span>
-            <span className={`shrink-0 w-36 ${EVENT_COLORS[ev.event] ?? "text-slate-300"}`}>
+            <span className={`shrink-0 w-40 ${EVENT_COLORS[ev.event] ?? "text-slate-300"}`}>
               {ev.event}
             </span>
             <span className="text-slate-300 break-all text-xs">
               {ev.event === "arena_challenge"
-                ? String(ev.data.description).slice(0, 120) + (String(ev.data.description).length > 120 ? "…" : "")
+                ? String(ev.data.description).slice(0, 120) +
+                  (String(ev.data.description).length > 120 ? "…" : "")
+                : ev.event === "arena_protocol_entry"
+                ? `+${(ev.data.entries as {token:string}[])?.map((e) => e.token).join(" ")} by ${ev.data.proposed_by}`
+                : ev.event === "arena_protocol_used"
+                ? `ratio=${ev.data.compression_ratio} vocab=${ev.data.vocab_size}`
+                : ev.event === "arena_protocol_consolidate"
+                ? `stage=${ev.data.new_stage} vocab=${ev.data.vocab_size}`
                 : JSON.stringify(ev.data)}
             </span>
           </div>

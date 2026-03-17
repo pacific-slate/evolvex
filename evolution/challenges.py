@@ -18,10 +18,12 @@ DIFFICULTY_TIERS = {
 
 @dataclass
 class Challenge:
-    description: str          # Natural language problem statement
+    description: str          # Natural language problem statement (may be protocol-encoded)
     difficulty: int           # 1-4
     test_cases: list          # [(input, expected_output), ...]
     hint: str = ""            # Optional structural hint for the Solver
+    protocol_description: str = ""  # Protocol-encoded form of description (Reflective+)
+    full_english: str = ""    # Always-English fallback used when protocol parsing fails
 
 
 def hardcode_challenges() -> list:

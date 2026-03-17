@@ -34,6 +34,7 @@ from agents.challenger import Challenger
 from evolution.loop import run_cycle, _BENCHMARK_DATA
 from evolution.checkpoint import clear as clear_checkpoints
 from evolution.arena import run_arena
+from evolution.protocol import Protocol
 
 load_dotenv()
 
@@ -43,6 +44,7 @@ analyzer: Analyzer | None = None
 modifier: Modifier | None = None
 solver: Solver | None = None
 challenger: Challenger | None = None
+arena_protocol: Protocol | None = None
 _ws_connections: list[WebSocket] = []
 _is_running = False
 _stop_requested = False
@@ -59,14 +61,15 @@ def require_openai_model() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global performer, analyzer, modifier, solver, challenger
+    global performer, analyzer, modifier, solver, challenger, arena_protocol
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
     model = require_openai_model()
     performer = Performer()
     analyzer = Analyzer(client)
     modifier = Modifier(client)
-    solver = Solver(client)
-    challenger = Challenger(client)
+    arena_protocol = Protocol()
+    solver = Solver(client, protocol=arena_protocol)
+    challenger = Challenger(client, protocol=arena_protocol)
     # Store model preference on agents for use in loop/arena
     analyzer._model = model  # type: ignore[attr-defined]
     modifier._model = model  # type: ignore[attr-defined]
@@ -78,7 +81,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="EvolveX API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "https://evolvex.pacslate.com"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -196,7 +199,10 @@ async def start_arena(req: ArenaStartRequest):
         _arena_stop_flag = [False]
         try:
             async for event in run_arena(  # type: ignore[arg-type]
-                solver, challenger, req.rounds, model=model, stop_flag=_arena_stop_flag
+                solver, challenger, req.rounds,
+                model=model,
+                stop_flag=_arena_stop_flag,
+                protocol=arena_protocol,
             ):
                 await broadcast(event)
         finally:
@@ -217,13 +223,14 @@ async def stop_arena():
 
 @app.post("/api/arena/reset")
 async def reset_arena():
-    global solver, challenger
+    global solver, challenger, arena_protocol
     if _arena_running:
         return {"error": "cannot reset while running — stop first"}
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
     model = require_openai_model()
-    solver = Solver(client)
-    challenger = Challenger(client)
+    arena_protocol = Protocol()
+    solver = Solver(client, protocol=arena_protocol)
+    challenger = Challenger(client, protocol=arena_protocol)
     solver._model = model      # type: ignore[attr-defined]
     challenger._model = model  # type: ignore[attr-defined]
     await broadcast({"event": "arena_reset", "data": {}})
@@ -238,4 +245,12 @@ async def get_arena_status():
         "status": "running" if _arena_running else "idle",
         "solver": solver.to_dict(),
         "challenger": challenger.to_dict() if challenger else {},
+        "protocol": arena_protocol.to_dict() if arena_protocol else {},
     }
+
+
+@app.get("/api/arena/protocol")
+async def get_arena_protocol():
+    if arena_protocol is None:
+        return {"status": "not_initialized"}
+    return arena_protocol.to_dict()
