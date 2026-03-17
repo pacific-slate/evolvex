@@ -1,0 +1,40 @@
+# EvolveX — Cursor AI Context
+
+## Project
+Self-modifying agent evolution system for the EvolveX hackathon.
+Agents analyze their own performance, propose code mutations, validate in sandbox, and apply successful changes.
+
+## Stack
+- Python 3.11 + FastAPI — agent engine, evolution loop, sandbox execution
+- Next.js 15 (App Router) + Tailwind — real-time evolution dashboard
+- OpenAI API (Codex / GPT-4.1) — agent intelligence layer
+- WebSockets — live dashboard updates
+
+## Architecture
+agents/
+  base_agent.py       — Base agent class with benchmark + self-analysis
+  performer.py        — Agent A: executes benchmark tasks
+  analyzer.py         — Agent B: measures performance, identifies improvements
+  modifier.py         — Agent C: proposes and applies code mutations
+
+evolution/
+  sandbox.py          — Isolated code execution environment
+  checkpoint.py       — Save/restore agent states
+  fitness.py          — Performance scoring and metrics
+  loop.py             — Main evolution orchestrator
+
+dashboard/            — Next.js real-time visualization
+  src/app/            — App Router pages
+  src/components/     — React components (EvolutionTree, MetricsChart, etc.)
+  src/lib/            — WebSocket client, API helpers
+
+## Key Patterns
+- Agents NEVER modify themselves directly — all mutations go through sandbox.py first
+- Every modification creates a checkpoint before applying
+- Failed mutations auto-rollback to last checkpoint
+- Fitness scores are the single source of truth for evolution decisions
+
+## Do NOT
+- Hardcode API keys — use .env
+- Skip sandbox validation — all code runs in isolation first
+- Skip checkpoint before mutation — rollback depends on it

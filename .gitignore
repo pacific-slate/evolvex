@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Next.js
+dashboard/.next/
+dashboard/node_modules/
+dashboard/out/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# Checkpoints (can be large)
+checkpoints/*.pkl
+checkpoints/*.json
+
+# Test artifacts
+tests/__pycache__/
+.pytest_cache/
