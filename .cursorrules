@@ -5,8 +5,8 @@ Self-modifying agent evolution system for the EvolveX hackathon.
 Agents analyze their own performance, propose code mutations, validate in sandbox, and apply successful changes.
 
 ## Stack
-- Python 3.11 + FastAPI — agent engine, evolution loop, sandbox execution
-- Next.js 15 (App Router) + Tailwind — real-time evolution dashboard
+- Python 3.13 + FastAPI — agent engine, evolution loop, sandbox execution
+- Next.js (App Router) + Tailwind — real-time evolution dashboard
 - OpenAI API (Codex / GPT-4.1) — agent intelligence layer
 - WebSockets — live dashboard updates
 
@@ -38,3 +38,31 @@ dashboard/            — Next.js real-time visualization
 - Hardcode API keys — use .env
 - Skip sandbox validation — all code runs in isolation first
 - Skip checkpoint before mutation — rollback depends on it
+
+## Available Skills (reference with @)
+- .agent/skills/multi-agent-patterns — orchestrator/swarm/hierarchical patterns, handoff protocols
+- .agent/skills/prompt-engineering — few-shot, chain-of-thought, system prompt design
+- .agent/skills/context-engineering — context window management, compression, memory tiers
+- .agent/skills/systematic-debugging — root cause tracing, defense-in-depth debugging
+
+## MCP Servers (configured in .cursor/mcp.json)
+- context7 — live library docs (use for OpenAI API, FastAPI, Next.js questions)
+- brave-search — web search during development
+- github — git operations
+- playwright / chrome-devtools — dashboard testing
+- shadcn — component lookups
+
+## Hackathon Constraints
+- This is a time-boxed build. Prefer simple, working code over elegant abstractions.
+- Demo readiness matters: every feature must be visible in the dashboard feed.
+- The evolution loop emits events — any new behavior must yield an event dict.
+- No classes unless necessary (Python). Functions over methods.
+- venv is at .venv/ (Python 3.13). Run: source .venv/bin/activate
+
+## Running Locally
+# Terminal 1 — backend
+source .venv/bin/activate && uvicorn api:app --reload --port 8000
+
+# Terminal 2 — dashboard
+cd dashboard && npm run dev
+# → http://localhost:3000
