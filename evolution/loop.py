@@ -12,8 +12,8 @@ from evolution.sandbox import validate, benchmark_proposed
 from evolution.checkpoint import save as save_checkpoint, latest as latest_checkpoint
 from evolution.fitness import score as fitness_score
 
-# Benchmark dataset — large enough to show timing differences
-_BENCHMARK_DATA = list(range(200, 0, -1))
+# Benchmark dataset — large enough to show visible timing differences between algorithms
+_BENCHMARK_DATA = list(range(500, 0, -1))
 
 
 async def run_cycle(
@@ -27,6 +27,7 @@ async def run_cycle(
     Event shapes: { "event": str, "data": dict }
     """
     # 1. Benchmark current performer
+    current_code_snapshot = performer.task_code  # capture before any mutation
     result = performer.run_benchmark(_BENCHMARK_DATA)
     current_fitness = fitness_score(result, baseline_ms)
 
@@ -81,12 +82,16 @@ async def run_cycle(
     # 7. Apply if fitness improved
     if proposed_fitness > current_fitness:
         delta = proposed_fitness - current_fitness
+        pct_improvement = ((baseline_ms - proposed_result.duration_ms) / baseline_ms) * 100
         performer.task_code = proposed_code
         performer.record_mutation(suggestion, delta)
         yield {"event": "applied", "data": {
             "generation": performer.generation,
             "delta_fitness": round(delta, 4),
             "new_fitness": round(performer.fitness_score, 4),
+            "pct_improvement": round(pct_improvement, 1),
+            "code": proposed_code,
+            "previous_code": current_code_snapshot,
         }}
     else:
         # Mutation valid but no improvement — discard

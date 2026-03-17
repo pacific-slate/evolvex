@@ -20,6 +20,7 @@ from agents.performer import Performer
 from agents.analyzer import Analyzer
 from agents.modifier import Modifier
 from evolution.loop import run_cycle, _BENCHMARK_DATA
+from evolution.checkpoint import clear as clear_checkpoints
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ analyzer: Analyzer | None = None
 modifier: Modifier | None = None
 _ws_connections: list[WebSocket] = []
 _is_running = False
+_stop_requested = False
 
 
 @asynccontextmanager
@@ -90,8 +92,9 @@ async def start_evolution(req: StartRequest):
         return {"error": "evolution already running"}
 
     async def _run():
-        global _is_running
+        global _is_running, _stop_requested
         _is_running = True
+        _stop_requested = False
         try:
             # Establish baseline on first cycle
             baseline = performer.run_benchmark(_BENCHMARK_DATA)  # type: ignore[union-attr]
@@ -99,6 +102,9 @@ async def start_evolution(req: StartRequest):
             await broadcast({"event": "started", "data": {"cycles": req.cycles, "baseline_ms": round(baseline_ms, 3)}})
 
             for i in range(req.cycles):
+                if _stop_requested:
+                    await broadcast({"event": "stopped", "data": {"cycle": i + 1}})
+                    return
                 await broadcast({"event": "cycle_start", "data": {"cycle": i + 1, "of": req.cycles}})
                 async for event in run_cycle(performer, analyzer, modifier, baseline_ms):  # type: ignore[arg-type]
                     await broadcast(event)
@@ -106,9 +112,30 @@ async def start_evolution(req: StartRequest):
             await broadcast({"event": "complete", "data": performer.to_dict()})  # type: ignore[union-attr]
         finally:
             _is_running = False
+            _stop_requested = False
 
     asyncio.create_task(_run())
     return {"status": "started", "cycles": req.cycles}
+
+
+@app.post("/api/evolve/stop")
+async def stop_evolution():
+    global _stop_requested
+    if not _is_running:
+        return {"error": "not running"}
+    _stop_requested = True
+    return {"status": "stopping"}
+
+
+@app.post("/api/evolve/reset")
+async def reset_evolution():
+    global performer
+    if _is_running:
+        return {"error": "cannot reset while running — stop first"}
+    performer = Performer()
+    clear_checkpoints("Performer")
+    await broadcast({"event": "reset", "data": {}})
+    return {"status": "reset"}
 
 
 @app.get("/api/evolve/status")
@@ -118,4 +145,5 @@ async def get_status():
     return {
         "status": "running" if _is_running else "idle",
         "agent": performer.to_dict(),
+        "current_code": performer.task_code,
     }
