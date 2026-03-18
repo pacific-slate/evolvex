@@ -6,6 +6,8 @@ conversation history, decides what tools to call, and compresses context when th
 history grows too large to keep inference fast.
 """
 
+import json
+from pathlib import Path
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -187,3 +189,31 @@ class MetaAgent:
             "name": name,
             "content": result,
         })
+
+    def save_checkpoint(self, path: str) -> None:
+        """Persist conversation history and token counts to disk."""
+        data = {
+            "history": self.history,
+            "total_prompt_tokens": self.total_prompt_tokens,
+            "total_completion_tokens": self.total_completion_tokens,
+        }
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        # Atomic rename so a crash mid-write never corrupts the checkpoint
+        Path(tmp).replace(path)
+
+    def load_checkpoint(self, path: str) -> int:
+        """
+        Restore history and token counts from a checkpoint file.
+        Returns the number of messages restored, or 0 if file not found.
+        """
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.history = data.get("history", [])
+            self.total_prompt_tokens = data.get("total_prompt_tokens", 0)
+            self.total_completion_tokens = data.get("total_completion_tokens", 0)
+            return len(self.history)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return 0

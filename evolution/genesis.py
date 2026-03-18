@@ -118,26 +118,47 @@ async def run_genesis(
     # Init workspace
     ensure_workspace()
 
+    CHECKPOINT_PATH = str(WORKSPACE_ROOT / ".checkpoint.json")
+    CHECKPOINT_EVERY = 10  # iterations between saves
+
     agent = MetaAgent(client=client, model=model, tools=TOOL_DEFINITIONS)
     current_phase = "RESEARCH"
     iteration = 0
     recent_actions: deque = deque(maxlen=REPEAT_WINDOW)
     consecutive_repeats: dict[str, int] = {}
 
-    yield {
-        "event": "genesis_started",
-        "data": {
-            "max_iterations": max_iterations,
-            "workspace_path": str(WORKSPACE_ROOT),
-        },
-    }
-
-    # Kick off: send the opening user message
-    opening = (
-        "Begin. You have full autonomy to build the most capable AI agent you can. "
-        "Start by researching what makes agents capable, then plan and build. "
-        "Document everything in BUILD_LOG.md."
-    )
+    # Attempt checkpoint resume
+    restored = agent.load_checkpoint(CHECKPOINT_PATH)
+    if restored:
+        current_phase = "BUILDING"  # safe assumption mid-run
+        yield {
+            "event": "genesis_started",
+            "data": {
+                "max_iterations": max_iterations,
+                "workspace_path": str(WORKSPACE_ROOT),
+                "resumed_from_checkpoint": True,
+                "messages_restored": restored,
+            },
+        }
+        opening = (
+            f"[RESUMED] You were interrupted mid-run. Your workspace files are intact. "
+            f"Check BUILD_LOG.md and your workspace to orient yourself, then continue building."
+        )
+    else:
+        yield {
+            "event": "genesis_started",
+            "data": {
+                "max_iterations": max_iterations,
+                "workspace_path": str(WORKSPACE_ROOT),
+                "resumed_from_checkpoint": False,
+            },
+        }
+        # Kick off: send the opening user message
+        opening = (
+            "Begin. You have full autonomy to build the most capable AI agent you can. "
+            "Start by researching what makes agents capable, then plan and build. "
+            "Document everything in BUILD_LOG.md."
+        )
 
     while iteration < max_iterations:
         if stop_flag[0]:
@@ -275,6 +296,13 @@ async def run_genesis(
                     yield {"event": "genesis_narrative", "data": {"text": narrative}}
 
         iteration += 1
+
+        # Checkpoint every N iterations (atomic write — crash-safe)
+        if iteration % CHECKPOINT_EVERY == 0:
+            try:
+                agent.save_checkpoint(CHECKPOINT_PATH)
+            except Exception:
+                pass  # never let a checkpoint failure kill the run
 
     # ── Completion ──────────────────────────────────────────────────────────
     # Final assessment
