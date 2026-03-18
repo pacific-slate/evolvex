@@ -58,7 +58,7 @@ Full spec: `arena_spec.md`
 - `tests/test_growth_session.py` — persistent growth-session coverage
 - `tests/test_housekeeping.py` — housekeeping audit coverage
 - `tests/test_housekeeping_supervisor.py` — supervisor report and action planning coverage
-- `codex_plan.md` — Classic mode execution plan
+- `docs/archive/hackathon/codex_plan.md` — archived Classic-mode hackathon execution plan
 - `arena_spec.md` — Arena mode full spec: architecture, event schema, build order
 
 ## Event Schema
@@ -157,8 +157,19 @@ cd dashboard && npm run dev
 source .venv/bin/activate && python -m pytest tests/ -v
 ```
 
+## Read Order
+
+When orienting to the current product state, read in this order:
+
+1. `README.md`
+2. `docs/agent-onboarding.md`
+3. `docs/current-state.md`
+4. `task_plan.md`
+5. `findings.md`
+6. `progress.md`
+
 ## Worktree Strategy (for parallel Codex development)
-See `codex_plan.md` for Classic mode task breakdown.
+See `docs/archive/hackathon/codex_plan.md` for the archived Classic-mode hackathon task breakdown.
 See `arena_spec.md` for Arena mode full spec.
 
 Three Arena tracks (parallel):

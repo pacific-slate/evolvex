@@ -9,6 +9,7 @@ Replace the bounded Bootstrap/Genesis product model with one persistent growth s
 - [completed] Replace batch-oriented API/status/event contracts with unified growth-session surfaces
 - [completed] Adapt dashboard data normalization and workspace layout to the new session contract
 - [completed] Add regression coverage and verify backend/frontend behavior
+- [completed] Refresh onboarding docs and archive obsolete hackathon-era documents
 
 ## Goal
 Build a supervisor-grade housekeeping and factory layer for EvolveX that audits repo/worktree state, backup coverage, quality gates, and docs coverage without mutating git state by default.

@@ -12,6 +12,7 @@
 - Bootstrap needed a `continuous` mode so chunk boundaries checkpoint without pretending the session is complete.
 - Genesis needed both `continuous` chunk completion and tool gating so the overseer can actually withhold power instead of just describing it in the UI.
 - A composite `GET /api/growth/session` payload is enough to drive the new operator workspace without preserving the old mode dashboard contract.
+- Top-level hackathon-era docs (`submission.md`, `demo_script.md`, `codex_plan.md`) are historical context now and should live under an archive path rather than the active repo root.
 
 ## 2026-03-17
 

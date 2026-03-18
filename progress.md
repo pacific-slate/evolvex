@@ -10,6 +10,7 @@
 - Extended `api.py` with unified growth-session endpoints, restart-safe bootstrap/genesis status helpers, and a single background growth loop.
 - Replaced the dashboard entrypoint with a single-session growth workspace driven by `/api/growth/session`.
 - Added `tests/test_growth_session.py` and verified backend + frontend regression checks.
+- Added durable onboarding docs under `docs/` and archived obsolete hackathon/demo docs into `docs/archive/hackathon/`.
 
 ## 2026-03-17
 

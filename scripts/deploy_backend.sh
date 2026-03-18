@@ -6,6 +6,7 @@ REMOTE_DIR="${EVOLVEX_BACKEND_DIR:-/opt/evolvex}"
 REMOTE_LOG="${EVOLVEX_BACKEND_LOG:-/var/log/evolvex-backend.log}"
 PORT="${EVOLVEX_BACKEND_PORT:-8000}"
 BIND_HOST="${EVOLVEX_BACKEND_BIND_HOST:-127.0.0.1}"
+REMOTE_BRANCH="${EVOLVEX_BACKEND_BRANCH:-main}"
 
 # Backend-only deployment. This never rebuilds or restarts the frontend.
 ssh "$REMOTE_HOST" 'bash -s' <<EOF
@@ -15,16 +16,22 @@ REMOTE_DIR="$REMOTE_DIR"
 REMOTE_LOG="$REMOTE_LOG"
 PORT="$PORT"
 BIND_HOST="$BIND_HOST"
+REMOTE_BRANCH="$REMOTE_BRANCH"
 
 cd "\$REMOTE_DIR"
-git fetch origin main
-git checkout main
+git restore --source=HEAD --staged --worktree dashboard 2>/dev/null || true
+git fetch origin "\$REMOTE_BRANCH"
+if git show-ref --verify --quiet "refs/heads/\$REMOTE_BRANCH"; then
+  git checkout "\$REMOTE_BRANCH"
+else
+  git checkout -B "\$REMOTE_BRANCH" "origin/\$REMOTE_BRANCH"
+fi
 
 # The backend checkout no longer serves the live UI. Clear stale frontend drift here
 # so backend-only pulls do not get blocked by old dashboard installs or edits.
 git restore --source=HEAD --staged --worktree dashboard 2>/dev/null || true
 
-git pull --ff-only origin main
+git pull --ff-only origin "\$REMOTE_BRANCH"
 
 source .venv/bin/activate
 python -m pytest tests/ -q

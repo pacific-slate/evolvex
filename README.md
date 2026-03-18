@@ -8,6 +8,15 @@ Built with a FastAPI backend, a Next.js operator workspace, and OpenAI-powered a
 
 Most agent systems expose short runs and hide the real developmental process. EvolveX treats agent construction as a durable operating environment instead: the system captures phase progression, capability unlocks, checkpoints, artifacts, scorecards, and archive bundles so you can leave, return, and continue the same growth process.
 
+## Read First
+
+If you are onboarding to this repo:
+
+1. `AGENTS.md`
+2. `docs/agent-onboarding.md`
+3. `docs/current-state.md`
+4. `task_plan.md`, `findings.md`, `progress.md`
+
 ## Persistent Growth Session
 
 The primary product surface is the growth session.
