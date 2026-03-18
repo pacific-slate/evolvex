@@ -162,6 +162,105 @@ export type GenesisNarrativeResponse = {
   error?: string;
 };
 
+export type GrowthCounts = {
+  frontier_signals: number;
+  growth_artifacts: number;
+  claim_checks: number;
+  promotion_candidates: number;
+};
+
+export type GrowthTopCandidate = {
+  title: string | null;
+  artifact_id: string | null;
+  promotion_state: string | null;
+  public_safe_as_is: boolean | null;
+};
+
+export type GrowthRunSummary = {
+  run_id: string;
+  counts: GrowthCounts;
+  latest_statuses: Record<string, Record<string, number>>;
+  top_candidate: GrowthTopCandidate | null;
+  updated_at?: string | null;
+};
+
+export type GrowthLatestSummary = {
+  latest_run_id: string | null;
+  counts: GrowthCounts;
+  latest_statuses: Record<string, Record<string, number>>;
+  top_candidate: GrowthTopCandidate | null;
+  updated_at?: string | null;
+  root?: string;
+};
+
+export type GrowthArtifactRecord = {
+  id: string;
+  run_id: string;
+  name: string;
+  artifact_path: string;
+  derived_from_signal_ids: string[];
+  artifact_type: string;
+  repo_gap: string;
+  smallest_test: string;
+  status: string;
+  owner: string;
+  recorded_at?: string;
+};
+
+export type GrowthClaimCheckRecord = {
+  id: string;
+  run_id: string;
+  claim: string;
+  source: string;
+  local_repo_mapping: string;
+  status: string;
+  notes: string;
+  recorded_at?: string;
+};
+
+export type GrowthPromotionCandidate = {
+  id: string;
+  run_id: string;
+  title: string;
+  artifact_id: string;
+  why_it_matters: string;
+  evidence: string;
+  public_safe_as_is: boolean;
+  required_scrub: string;
+  promotion_state: string;
+  artifact_path?: string;
+  artifact_status?: string;
+  artifact_type?: string;
+  recorded_at?: string;
+};
+
+export type GrowthRunBundle = {
+  run_id: string;
+  counts: GrowthCounts;
+  latest_statuses: Record<string, Record<string, number>>;
+  top_candidate: GrowthTopCandidate | null;
+  root?: string;
+  records: {
+    frontier_signals: EventData[];
+    growth_artifacts: GrowthArtifactRecord[];
+    claim_checks: GrowthClaimCheckRecord[];
+    promotion_candidates: GrowthPromotionCandidate[];
+  };
+};
+
+export type GrowthRunsResponse = {
+  runs: GrowthRunSummary[];
+  latest_run_id: string | null;
+  root?: string;
+};
+
+export type GrowthPromotionQueueResponse = {
+  candidates: GrowthPromotionCandidate[];
+  total: number;
+  latest_run_id: string | null;
+  root?: string;
+};
+
 export type WorkbenchRawState = {
   connected: boolean;
   events: EvolutionEvent[];
@@ -175,6 +274,10 @@ export type WorkbenchRawState = {
   genesisStatus: GenesisStatus | null;
   genesisFiles: GenesisFile[];
   genesisNarrative: string | null;
+  growthLatest: GrowthLatestSummary | null;
+  growthRuns: GrowthRunSummary[];
+  growthLatestRun: GrowthRunBundle | null;
+  growthPromotionQueue: GrowthPromotionCandidate[];
   currentCode: string | null;
 };
 

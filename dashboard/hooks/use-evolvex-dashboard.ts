@@ -16,6 +16,11 @@ import type {
   GenesisNarrativeResponse,
   GenesisScores,
   GenesisStatus,
+  GrowthLatestSummary,
+  GrowthPromotionCandidate,
+  GrowthPromotionQueueResponse,
+  GrowthRunBundle,
+  GrowthRunsResponse,
   ModeKey,
   ProtocolState,
   SolverState,
@@ -57,6 +62,10 @@ export function useEvolvexDashboard() {
   const [genesisStatus, setGenesisStatus] = useState<GenesisStatus | null>(null);
   const [genesisFiles, setGenesisFiles] = useState<GenesisFile[]>([]);
   const [genesisNarrative, setGenesisNarrative] = useState<string | null>(null);
+  const [growthLatest, setGrowthLatest] = useState<GrowthLatestSummary | null>(null);
+  const [growthRuns, setGrowthRuns] = useState<GrowthRunsResponse["runs"]>([]);
+  const [growthLatestRun, setGrowthLatestRun] = useState<GrowthRunBundle | null>(null);
+  const [growthPromotionQueue, setGrowthPromotionQueue] = useState<GrowthPromotionCandidate[]>([]);
   const [cycles, setCycles] = useState(5);
   const [arenaRounds, setArenaRounds] = useState(10);
   const [bootstrapRounds, setBootstrapRounds] = useState(12);
@@ -124,6 +133,27 @@ export function useEvolvexDashboard() {
   const refreshGenesisNarrative = useCallback(async () => {
     const data = await readJson<GenesisNarrativeResponse>(`${runtime.apiBase}/api/genesis/narrative`);
     if (data?.content) setGenesisNarrative(data.content);
+  }, [runtime.apiBase]);
+
+  const refreshGrowth = useCallback(async () => {
+    const [latest, runs, queue] = await Promise.all([
+      readJson<GrowthLatestSummary>(`${runtime.apiBase}/api/growth/latest`),
+      readJson<GrowthRunsResponse>(`${runtime.apiBase}/api/growth/runs`),
+      readJson<GrowthPromotionQueueResponse>(`${runtime.apiBase}/api/growth/promotion-queue`),
+    ]);
+
+    if (latest?.counts) setGrowthLatest(latest);
+    if (runs?.runs) setGrowthRuns(runs.runs);
+    if (queue?.candidates) setGrowthPromotionQueue(queue.candidates);
+
+    const latestRunId = latest?.latest_run_id ?? runs?.latest_run_id ?? null;
+    if (!latestRunId) {
+      setGrowthLatestRun(null);
+      return;
+    }
+
+    const run = await readJson<GrowthRunBundle>(`${runtime.apiBase}/api/growth/runs/${latestRunId}`);
+    if (run?.run_id) setGrowthLatestRun(run);
   }, [runtime.apiBase]);
 
   const appendEvent = useCallback((event: { event: string; data: Record<string, unknown> }) => {
@@ -254,6 +284,9 @@ export function useEvolvexDashboard() {
           if (event.event === "genesis_narrative") {
             setGenesisNarrative((event.data.text as string) ?? null);
           }
+          if (["genesis_complete", "genesis_growth_recorded", "genesis_reset"].includes(event.event)) {
+            void refreshGrowth();
+          }
         }
       };
     };
@@ -265,7 +298,7 @@ export function useEvolvexDashboard() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socket?.close();
     };
-  }, [appendEvent, refreshArena, refreshBootstrap, refreshClassic, refreshGenesisNarrative, refreshGenesisStatus, refreshGenesisWorkspace, runtime.wsUrl]);
+  }, [appendEvent, refreshArena, refreshBootstrap, refreshClassic, refreshGenesisNarrative, refreshGenesisStatus, refreshGenesisWorkspace, refreshGrowth, runtime.wsUrl]);
 
   useEffect(() => {
     const load = async () => {
@@ -276,11 +309,12 @@ export function useEvolvexDashboard() {
         refreshGenesisStatus(),
         refreshGenesisWorkspace(),
         refreshGenesisNarrative(),
+        refreshGrowth(),
       ]);
     };
 
     void load();
-  }, [refreshArena, refreshBootstrap, refreshClassic, refreshGenesisNarrative, refreshGenesisStatus, refreshGenesisWorkspace]);
+  }, [refreshArena, refreshBootstrap, refreshClassic, refreshGenesisNarrative, refreshGenesisStatus, refreshGenesisWorkspace, refreshGrowth]);
 
   const clearEvents = useCallback(() => setEvents([]), []);
 
@@ -450,6 +484,10 @@ export function useEvolvexDashboard() {
       genesisStatus,
       genesisFiles,
       genesisNarrative,
+      growthLatest,
+      growthRuns,
+      growthLatestRun,
+      growthPromotionQueue,
       currentCode,
     }),
     [
@@ -463,6 +501,10 @@ export function useEvolvexDashboard() {
       genesisFiles,
       genesisNarrative,
       genesisStatus,
+      growthLatest,
+      growthLatestRun,
+      growthPromotionQueue,
+      growthRuns,
       modeRunning,
       protocol,
       solver,
@@ -535,6 +577,10 @@ export function useEvolvexDashboard() {
       genesisStatus,
       genesisFiles,
       genesisNarrative,
+      growthLatest,
+      growthRuns,
+      growthLatestRun,
+      growthPromotionQueue,
       currentCode,
     },
   };

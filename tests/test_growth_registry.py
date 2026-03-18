@@ -65,6 +65,18 @@ def _promotion_candidate(run_id: str) -> dict:
     }
 
 
+def _bundle(run_id: str) -> dict:
+    return {
+        "run_id": run_id,
+        "records": {
+            "frontier_signals": [_frontier_signal(run_id)],
+            "growth_artifacts": [_growth_artifact(run_id)],
+            "claim_checks": [_claim_check(run_id)],
+            "promotion_candidates": [_promotion_candidate(run_id)],
+        },
+    }
+
+
 def test_append_record_creates_jsonl_and_latest_index(monkeypatch, tmp_path):
     monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(tmp_path))
     run_id = "2026-03-18-run"
@@ -117,6 +129,58 @@ def test_read_latest_summary_handles_empty_registry(monkeypatch, tmp_path):
     assert summary["top_candidate"] is None
 
 
+def test_import_bundle_and_list_views(monkeypatch, tmp_path):
+    monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(tmp_path))
+
+    growth_registry.import_bundle(_bundle("2026-03-18-run-a"))
+    growth_registry.import_bundle(
+        {
+            "run_id": "2026-03-18-run-b",
+            "records": {
+                "frontier_signals": [{**_frontier_signal("2026-03-18-run-b"), "id": "signal-2"}],
+                "growth_artifacts": [{**_growth_artifact("2026-03-18-run-b"), "id": "artifact-2"}],
+                "claim_checks": [{**_claim_check("2026-03-18-run-b"), "id": "claim-2"}],
+                "promotion_candidates": [
+                    {
+                        **_promotion_candidate("2026-03-18-run-b"),
+                        "id": "promotion-2",
+                        "artifact_id": "artifact-2",
+                        "title": "Growth HUD and Promotion Queue",
+                    }
+                ],
+            },
+        }
+    )
+
+    runs = growth_registry.list_run_summaries()
+    queue = growth_registry.list_promotion_candidates()
+
+    assert [run["run_id"] for run in runs] == ["2026-03-18-run-b", "2026-03-18-run-a"]
+    assert queue[0]["run_id"] == "2026-03-18-run-b"
+    assert queue[0]["artifact_path"] == "ops/nightly/artifacts/2026-03-18_PRIMARY_BUILD_PLAN.md"
+
+
+def test_register_genesis_completion_creates_review_candidate(monkeypatch, tmp_path):
+    monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(tmp_path))
+
+    result = growth_registry.register_genesis_completion(
+        files_created=["BUILD_LOG.md", "src/agent.py"],
+        final_assessment={"overall": 82},
+        total_cost_usd=1.2345,
+        pricing_known=True,
+        workspace_root="/tmp/evolvex-workspace",
+        run_id="genesis-validated-run",
+    )
+
+    summary = growth_registry.read_run_bundle("genesis-validated-run")
+
+    assert result["run_id"] == "genesis-validated-run"
+    assert summary["counts"]["growth_artifacts"] == 1
+    assert summary["counts"]["promotion_candidates"] == 1
+    assert summary["records"]["promotion_candidates"][0]["promotion_state"] == "review"
+    assert summary["records"]["growth_artifacts"][0]["artifact_path"] == "/tmp/evolvex-workspace"
+
+
 def test_growth_api_returns_latest_summary_and_run_records(monkeypatch, tmp_path):
     monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(tmp_path))
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -132,15 +196,24 @@ def test_growth_api_returns_latest_summary_and_run_records(monkeypatch, tmp_path
 
     with TestClient(app) as client:
         latest = client.get("/api/growth/latest")
+        runs = client.get("/api/growth/runs")
         run = client.get(f"/api/growth/runs/{run_id}")
+        queue = client.get("/api/growth/promotion-queue")
         missing = client.get("/api/growth/runs/does-not-exist")
 
     assert latest.status_code == 200
     assert latest.json()["latest_run_id"] == run_id
     assert latest.json()["counts"]["frontier_signals"] == 1
 
+    assert runs.status_code == 200
+    assert runs.json()["runs"][0]["run_id"] == run_id
+
     assert run.status_code == 200
     assert run.json()["run_id"] == run_id
     assert run.json()["records"]["promotion_candidates"][0]["title"] == "Verified Growth Registry"
+
+    assert queue.status_code == 200
+    assert queue.json()["total"] == 1
+    assert queue.json()["candidates"][0]["title"] == "Verified Growth Registry"
 
     assert missing.status_code == 404

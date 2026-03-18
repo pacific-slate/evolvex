@@ -10,6 +10,7 @@ export default function Home() {
 
   return (
     <WorkbenchShell
+      apiBase={dashboard.runtime.apiBase}
       mode={dashboard.mode}
       modeCards={dashboard.derived.modeCards}
       overview={dashboard.derived.overview}
@@ -19,6 +20,10 @@ export default function Home() {
       onDismissNotice={dashboard.dismissNotice}
       onModeChange={dashboard.setMode}
       inspectorSections={dashboard.derived.inspectorSections}
+      growthLatest={dashboard.data.growthLatest}
+      growthRuns={dashboard.data.growthRuns}
+      growthLatestRun={dashboard.data.growthLatestRun}
+      growthPromotionQueue={dashboard.data.growthPromotionQueue}
       canvas={<ModeSections dashboard={dashboard} />}
       dock={<EventDock dashboard={dashboard} />}
     />

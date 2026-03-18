@@ -5,6 +5,7 @@ REMOTE_HOST="${EVOLVEX_REMOTE_HOST:-ssh.pacificslate.org}"
 REMOTE_DIR="${EVOLVEX_FRONTEND_DIR:-/opt/evolvex-frontend}"
 REMOTE_LOG="${EVOLVEX_FRONTEND_LOG:-/var/log/evolvex-frontend.log}"
 PORT="${EVOLVEX_FRONTEND_PORT:-3002}"
+BRANCH="${EVOLVEX_DEPLOY_BRANCH:-post-submission-dev}"
 
 # Frontend-only deployment. This never touches the backend checkout or agent process.
 ssh "$REMOTE_HOST" 'bash -s' <<EOF
@@ -13,15 +14,16 @@ set -euo pipefail
 REMOTE_DIR="$REMOTE_DIR"
 REMOTE_LOG="$REMOTE_LOG"
 PORT="$PORT"
+BRANCH="$BRANCH"
 
 if [ ! -d "\$REMOTE_DIR/.git" ]; then
   git clone git@github.com:pacific-slate/evolvex.git "\$REMOTE_DIR"
 fi
 
 cd "\$REMOTE_DIR"
-git fetch origin main
-git checkout main
-git pull --ff-only origin main
+git fetch origin "\$BRANCH"
+git checkout "\$BRANCH"
+git pull --ff-only origin "\$BRANCH"
 
 cd dashboard
 npm ci

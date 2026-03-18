@@ -2,10 +2,12 @@
 set -euo pipefail
 
 REMOTE_HOST="${EVOLVEX_REMOTE_HOST:-ssh.pacificslate.org}"
-REMOTE_DIR="${EVOLVEX_BACKEND_DIR:-/opt/evolvex}"
+REMOTE_DIR="${EVOLVEX_BACKEND_DIR:-/opt/evolvex-post-submission-dev}"
 REMOTE_LOG="${EVOLVEX_BACKEND_LOG:-/var/log/evolvex-backend.log}"
 PORT="${EVOLVEX_BACKEND_PORT:-8000}"
 BIND_HOST="${EVOLVEX_BACKEND_BIND_HOST:-127.0.0.1}"
+BRANCH="${EVOLVEX_DEPLOY_BRANCH:-post-submission-dev}"
+ENV_FILE="${EVOLVEX_ENV_FILE:-/opt/evolvex/.env}"
 
 # Backend-only deployment. This never rebuilds or restarts the frontend.
 ssh "$REMOTE_HOST" 'bash -s' <<EOF
@@ -15,16 +17,20 @@ REMOTE_DIR="$REMOTE_DIR"
 REMOTE_LOG="$REMOTE_LOG"
 PORT="$PORT"
 BIND_HOST="$BIND_HOST"
+BRANCH="$BRANCH"
+ENV_FILE="$ENV_FILE"
 
 cd "\$REMOTE_DIR"
-git fetch origin main
-git checkout main
+git fetch origin "\$BRANCH"
+git checkout "\$BRANCH"
 
-# The backend checkout no longer serves the live UI. Clear stale frontend drift here
-# so backend-only pulls do not get blocked by old dashboard installs or edits.
-git restore --source=HEAD --staged --worktree dashboard 2>/dev/null || true
+if [ -f "\$ENV_FILE" ]; then
+  set -a
+  source "\$ENV_FILE"
+  set +a
+fi
 
-git pull --ff-only origin main
+git pull --ff-only origin "\$BRANCH"
 
 source .venv/bin/activate
 python -m pytest tests/ -q

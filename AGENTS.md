@@ -16,13 +16,18 @@ Full spec: `arena_spec.md`
 
 ## Growth Registry
 
-This branch also ships a read-only growth registry foundation.
+This branch also ships a growth registry substrate plus operator-console surfaces.
 
 - storage root: `ops/nightly/registry/`
 - reader module: `evolution/growth_registry.py`
+- seeded validated run: `2026-03-18-validated-rerun`
+- import script: `scripts/import_growth_bundle.py`
 - read endpoints:
   - `GET /api/growth/latest`
+  - `GET /api/growth/runs`
   - `GET /api/growth/runs/{run_id}`
+  - `GET /api/growth/promotion-queue`
+- Genesis completion now auto-registers a durable growth artifact and review candidate.
 
 ## Current Truth Boundary
 
@@ -45,6 +50,7 @@ This branch also ships a read-only growth registry foundation.
 
 - `api.py` — FastAPI server and endpoint contract
 - `evolution/growth_registry.py` — append-only growth registry helpers
+- `scripts/import_growth_bundle.py` — imports structured validated-run bundles
 - `agents/performer.py`, `agents/analyzer.py`, `agents/modifier.py` — Classic loop
 - `agents/solver.py`, `agents/challenger.py` — Arena mode
 - `agents/bootstrap_peer.py` — Bootstrap peers

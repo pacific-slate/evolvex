@@ -22,7 +22,9 @@ Genesis mode:
 
 Growth registry:
 - GET  /api/growth/latest     — latest run summary and status breakdown
+- GET  /api/growth/runs       — recent run summaries
 - GET  /api/growth/runs/{run_id} — full record bundle for one growth run
+- GET  /api/growth/promotion-queue — promotion candidates across runs
 
 WS /ws/evolution          — real-time event stream (all modes share this channel)
 """
@@ -55,7 +57,13 @@ from evolution.bootstrap_protocol import BootstrapProtocol
 from evolution.genesis import run_genesis
 from evolution.genesis_sandbox import WORKSPACE_ROOT, ensure_workspace
 from evolution.genesis_tools import TOOL_DEFINITIONS
-from evolution.growth_registry import read_latest_summary, read_run_bundle
+from evolution.growth_registry import (
+    list_promotion_candidates,
+    list_run_summaries,
+    read_latest_summary,
+    read_run_bundle,
+    register_genesis_completion,
+)
 from evolution.protocol import Protocol
 
 load_dotenv()
@@ -582,6 +590,22 @@ async def start_genesis(req: GenesisStartRequest):
                 elif ev == "genesis_complete":
                     _genesis_status["files_created"] = data.get("files_created", [])
                     _genesis_status["phase"] = "COMPLETE"
+                    growth_record = register_genesis_completion(
+                        files_created=[str(path) for path in data.get("files_created", [])],
+                        final_assessment=data.get("final_assessment"),
+                        total_cost_usd=data.get("total_cost_usd"),
+                        pricing_known=data.get("pricing_known"),
+                        workspace_root=str(WORKSPACE_ROOT),
+                    )
+                    await broadcast(
+                        {
+                            "event": "genesis_growth_recorded",
+                            "data": {
+                                "run_id": growth_record["run_id"],
+                                "promotion_state": growth_record["promotion_candidate"]["promotion_state"],
+                            },
+                        }
+                    )
         except Exception as exc:
             await broadcast({"event": "genesis_error", "data": _error_data(exc, phase="genesis_run")})
         finally:
@@ -655,9 +679,31 @@ async def get_growth_latest():
     return read_latest_summary()
 
 
+@app.get("/api/growth/runs")
+async def get_growth_runs():
+    latest = read_latest_summary()
+    return {
+        "runs": list_run_summaries(),
+        "latest_run_id": latest.get("latest_run_id"),
+        "root": latest.get("root"),
+    }
+
+
 @app.get("/api/growth/runs/{run_id}")
 async def get_growth_run(run_id: str):
     try:
         return read_run_bundle(run_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/growth/promotion-queue")
+async def get_growth_promotion_queue():
+    latest = read_latest_summary()
+    candidates = list_promotion_candidates()
+    return {
+        "candidates": candidates,
+        "total": len(candidates),
+        "latest_run_id": latest.get("latest_run_id"),
+        "root": latest.get("root"),
+    }

@@ -180,7 +180,9 @@ export function buildTraceEntries(events: WorkbenchRawState["events"], scope: Mo
 export function buildWorkbenchOverview(state: WorkbenchRawState): WorkbenchOverview {
   const activeModeCount = MODE_ORDER.filter((mode) => state.modeRunning[mode]).length;
   const protocolTokenCount = (state.protocol?.vocab_size ?? 0) + (state.bootstrapProtocol?.vocab_size ?? 0);
-  const artifactCount = state.bootstrapArtifacts.length + state.genesisFiles.length;
+  const durableRunCount = state.growthRuns.length;
+  const promotionQueueCount = state.growthPromotionQueue.length;
+  const artifactCount = state.bootstrapArtifacts.length + state.genesisFiles.length + (state.growthLatest?.counts.growth_artifacts ?? 0);
   const safetyChecks = state.events.filter((event) => SAFETY_EVENTS.has(event.event)).length;
   const lastTrace = buildTraceEntries(state.events, "all", 1)[0] ?? null;
 
@@ -198,9 +200,14 @@ export function buildWorkbenchOverview(state: WorkbenchRawState): WorkbenchOverv
         helper: activeModeCount > 0 ? "Modes currently running in the lab" : "Workbench is ready for the next run",
       },
       {
-        label: "Safety Checks",
-        value: String(safetyChecks),
-        helper: "Classic sandbox outcomes captured in the trace",
+        label: "Durable Runs",
+        value: String(durableRunCount),
+        helper: durableRunCount > 0 ? "Registry-backed runs available for review" : "No seeded growth runs yet",
+      },
+      {
+        label: "Promotion Queue",
+        value: String(promotionQueueCount),
+        helper: promotionQueueCount > 0 ? "Candidates waiting for operator review" : "No promotion candidates queued",
       },
       {
         label: "Protocol Tokens",
@@ -210,7 +217,12 @@ export function buildWorkbenchOverview(state: WorkbenchRawState): WorkbenchOverv
       {
         label: "Artifacts Tracked",
         value: String(artifactCount),
-        helper: "Workspace and bootstrap outputs under observation",
+        helper: "Live outputs plus registry-backed growth artifacts",
+      },
+      {
+        label: "Safety Checks",
+        value: String(safetyChecks),
+        helper: "Classic sandbox outcomes captured in the trace",
       },
     ],
   };

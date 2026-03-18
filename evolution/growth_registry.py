@@ -8,6 +8,7 @@ import re
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from shutil import rmtree
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_REGISTRY_ROOT = REPO_ROOT / "ops" / "nightly" / "registry"
@@ -253,4 +254,175 @@ def read_run_bundle(run_id: str) -> dict:
         "top_candidate": summary["top_candidate"],
         "records": records,
         "root": str(registry_root()),
+    }
+
+
+def list_run_ids() -> list[str]:
+    root = registry_root()
+    if not root.exists():
+        return []
+    return sorted(item.name for item in root.iterdir() if item.is_dir())
+
+
+def _latest_recorded_at(records: dict[str, list[dict]]) -> str | None:
+    timestamps = [
+        str(item.get("recorded_at"))
+        for family_records in records.values()
+        for item in family_records
+        if item.get("recorded_at")
+    ]
+    if not timestamps:
+        return None
+    return max(timestamps)
+
+
+def list_run_summaries(limit: int | None = None) -> list[dict]:
+    run_ids = list_run_ids()
+    if limit is not None and limit > 0:
+        run_ids = run_ids[-limit:]
+
+    summaries: list[dict] = []
+    for run_id in reversed(run_ids):
+        records = read_run(run_id)
+        summary = summarize_run(run_id)
+        summaries.append(
+            {
+                "run_id": summary["run_id"],
+                "counts": summary["counts"],
+                "latest_statuses": summary["latest_statuses"],
+                "top_candidate": summary["top_candidate"],
+                "updated_at": _latest_recorded_at(records),
+            }
+        )
+    return summaries
+
+
+def list_promotion_candidates(limit: int | None = None) -> list[dict]:
+    queue: list[dict] = []
+    for run_id in reversed(list_run_ids()):
+        artifacts = {
+            item["id"]: item
+            for item in read_family(run_id, "growth_artifacts")
+            if isinstance(item, dict) and item.get("id")
+        }
+        candidates = read_family(run_id, "promotion_candidates")
+        for candidate in reversed(candidates):
+            item = dict(candidate)
+            artifact = artifacts.get(str(item.get("artifact_id", "")))
+            if artifact:
+                item["artifact_path"] = artifact.get("artifact_path")
+                item["artifact_status"] = artifact.get("status")
+                item["artifact_type"] = artifact.get("artifact_type")
+            queue.append(item)
+
+    queue.sort(key=lambda item: str(item.get("recorded_at", "")), reverse=True)
+    if limit is not None and limit > 0:
+        return queue[:limit]
+    return queue
+
+
+def clear_run(run_id: str) -> None:
+    path = run_dir(run_id)
+    if path.exists():
+        rmtree(path)
+    latest = read_latest_summary()
+    if latest.get("latest_run_id") == normalize_run_id(run_id):
+        latest_path = latest_index_path()
+        if latest_path.exists():
+            latest_path.unlink()
+
+
+def import_bundle(bundle: dict, *, replace_run: bool = False) -> dict:
+    if not isinstance(bundle, dict):
+        raise ValueError("bundle must be a dict")
+
+    run_id = normalize_run_id(str(bundle.get("run_id", "")))
+    records = bundle.get("records")
+    if not isinstance(records, dict):
+        raise ValueError("bundle records must be a dict keyed by record family")
+
+    if replace_run:
+        clear_run(run_id)
+
+    imported_counts = empty_counts()
+    for family in RECORD_FILES:
+        family_records = records.get(family, [])
+        if family_records is None:
+            continue
+        if not isinstance(family_records, list):
+            raise ValueError(f"{family} records must be a list")
+        for record in family_records:
+            normalized = dict(record)
+            normalized.setdefault("run_id", run_id)
+            append_record(family, normalized)
+            imported_counts[family] += 1
+
+    return {
+        "run_id": run_id,
+        "counts": imported_counts,
+        "summary": read_run_bundle(run_id),
+    }
+
+
+def _genesis_run_id() -> str:
+    return f"genesis-{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%SZ')}"
+
+
+def register_genesis_completion(
+    *,
+    files_created: list[str],
+    final_assessment: dict | None,
+    total_cost_usd: float | None,
+    pricing_known: bool | None,
+    workspace_root: str,
+    run_id: str | None = None,
+) -> dict:
+    normalized_run_id = normalize_run_id(run_id or _genesis_run_id())
+    artifact_id = f"{normalized_run_id}-workspace"
+    safe_files = [str(path) for path in files_created if str(path).strip()]
+    overall = int(final_assessment.get("overall", 0)) if isinstance(final_assessment, dict) else 0
+    artifact_status = "validated" if safe_files else "empty"
+    evidence = [
+        f"files={len(safe_files)}",
+        f"overall={overall}",
+        f"cost_usd={float(total_cost_usd or 0.0):.4f}",
+        "pricing_known=true" if pricing_known is not False else "pricing_known=false",
+    ]
+
+    artifact_record = append_record(
+        "growth_artifacts",
+        {
+            "id": artifact_id,
+            "run_id": normalized_run_id,
+            "name": "Genesis workspace snapshot",
+            "artifact_path": workspace_root,
+            "derived_from_signal_ids": [],
+            "artifact_type": "genesis-run",
+            "repo_gap": "Genesis outputs are ephemeral unless promoted into the growth registry.",
+            "smallest_test": "Complete a Genesis run and verify a durable growth record appears.",
+            "status": artifact_status,
+            "owner": "genesis",
+        },
+    )
+
+    candidate_record = append_record(
+        "promotion_candidates",
+        {
+            "id": f"{normalized_run_id}-promotion",
+            "run_id": normalized_run_id,
+            "title": "Genesis workspace snapshot",
+            "artifact_id": artifact_id,
+            "why_it_matters": "Captures autonomous build output as a durable review artifact.",
+            "evidence": ", ".join(evidence),
+            "public_safe_as_is": False,
+            "required_scrub": "Review generated files before upstreaming or publication.",
+            "promotion_state": "review",
+        },
+    )
+
+    return {
+        "run_id": normalized_run_id,
+        "artifact": artifact_record,
+        "promotion_candidate": candidate_record,
+        "summary": read_run_bundle(normalized_run_id),
     }

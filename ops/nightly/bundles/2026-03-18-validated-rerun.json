@@ -1,0 +1,182 @@
+{
+  "run_id": "2026-03-18-validated-rerun",
+  "records": {
+    "frontier_signals": [
+      {
+        "id": "signal-portable-skills",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Portable skills are becoming reusable agent infrastructure",
+        "source_url": "https://github.com/anthropics/skills",
+        "source_class": "GitHub",
+        "accessed_at": "2026-03-18",
+        "claim": "Skills are evolving from prompt fragments into explicit reusable infrastructure.",
+        "why_it_matters": "Supports promoted capabilities that persist beyond one run.",
+        "maps_to": "capability-promotion",
+        "confidence": "high",
+        "public_safety_notes": "Public repository reference.",
+        "recorded_at": "2026-03-18T15:16:20Z"
+      },
+      {
+        "id": "signal-skill-metadata",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Delegation boundaries need explicit metadata",
+        "source_url": "https://github.com/agentskills/agentskills",
+        "source_class": "GitHub",
+        "accessed_at": "2026-03-18",
+        "claim": "Portable skill metadata and delegation boundaries are an active design problem.",
+        "why_it_matters": "Supports adding a promotion queue instead of ad hoc capability notes.",
+        "maps_to": "promotion-queue",
+        "confidence": "high",
+        "public_safety_notes": "Public specification reference.",
+        "recorded_at": "2026-03-18T15:16:21Z"
+      },
+      {
+        "id": "signal-sessions-tracing",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Sessions and tracing are table stakes in agent runtimes",
+        "source_url": "https://github.com/openai/openai-agents-python",
+        "source_class": "GitHub",
+        "accessed_at": "2026-03-18",
+        "claim": "Durable session and tracing semantics are now baseline expectations.",
+        "why_it_matters": "EvolveX already traces live runs, but it still needed a durable cross-run growth ledger.",
+        "maps_to": "run-registry",
+        "confidence": "high",
+        "public_safety_notes": "Public repository reference.",
+        "recorded_at": "2026-03-18T15:16:22Z"
+      },
+      {
+        "id": "signal-operator-hud",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Persistent HUDs improve operator trust",
+        "source_url": "https://github.com/jarrodwatts/claude-hud",
+        "source_class": "GitHub",
+        "accessed_at": "2026-03-18",
+        "claim": "Always-visible status, queue state, and review surfaces matter for long-running agent workflows.",
+        "why_it_matters": "Supports a VS Code-like operator console instead of a passive dashboard.",
+        "maps_to": "growth-console",
+        "confidence": "high",
+        "public_safety_notes": "Public repository reference.",
+        "recorded_at": "2026-03-18T15:16:23Z"
+      }
+    ],
+    "growth_artifacts": [
+      {
+        "id": "artifact-growth-registry-plan",
+        "run_id": "2026-03-18-validated-rerun",
+        "name": "Verified Growth Registry",
+        "artifact_path": "ops/nightly/artifacts/2026-03-18_PRIMARY_BUILD_PLAN.md",
+        "derived_from_signal_ids": [
+          "signal-portable-skills",
+          "signal-sessions-tracing"
+        ],
+        "artifact_type": "implementation-plan",
+        "repo_gap": "No shipped growth schema or durable promotion substrate existed before this rerun.",
+        "smallest_test": "Append JSONL records, expose a read API, and seed a validated run.",
+        "status": "validated",
+        "owner": "post-submission-dev",
+        "recorded_at": "2026-03-18T15:16:30Z"
+      },
+      {
+        "id": "artifact-truth-ledger",
+        "run_id": "2026-03-18-validated-rerun",
+        "name": "Fact Check Ledger",
+        "artifact_path": "ops/nightly/artifacts/2026-03-18_FACT_CHECK_LEDGER.md",
+        "derived_from_signal_ids": [
+          "signal-sessions-tracing"
+        ],
+        "artifact_type": "validation-ledger",
+        "repo_gap": "Docs and product story could drift ahead of shipped routes and branches.",
+        "smallest_test": "Record landed, unsupported, and branch-only claims in a durable bundle.",
+        "status": "validated",
+        "owner": "post-submission-dev",
+        "recorded_at": "2026-03-18T15:16:31Z"
+      },
+      {
+        "id": "artifact-growth-console-brief",
+        "run_id": "2026-03-18-validated-rerun",
+        "name": "Growth HUD and Promotion Queue",
+        "artifact_path": "ops/nightly/artifacts/2026-03-18_OPPORTUNITY_MATRIX.md",
+        "derived_from_signal_ids": [
+          "signal-operator-hud",
+          "signal-skill-metadata"
+        ],
+        "artifact_type": "operator-console-brief",
+        "repo_gap": "The dashboard had no cross-run growth surface or actionable promotion review state.",
+        "smallest_test": "Show latest run summary, top candidate, and queue state in the console.",
+        "status": "queued",
+        "owner": "post-submission-dev",
+        "recorded_at": "2026-03-18T15:16:32Z"
+      }
+    ],
+    "claim_checks": [
+      {
+        "id": "claim-arena-shipped",
+        "run_id": "2026-03-18-validated-rerun",
+        "claim": "Arena mode is shipped on the current mainline.",
+        "source": "validated rerun and shipped commit history",
+        "local_repo_mapping": "agents/solver.py, agents/challenger.py, evolution/arena.py, api.py",
+        "status": "landed",
+        "notes": "Verified in code and in the validated rerun.",
+        "recorded_at": "2026-03-18T15:16:40Z"
+      },
+      {
+        "id": "claim-genesis-shipped",
+        "run_id": "2026-03-18-validated-rerun",
+        "claim": "Genesis mode is shipped on the current mainline.",
+        "source": "validated rerun and shipped commit history",
+        "local_repo_mapping": "agents/meta_agent.py, evolution/genesis.py, evolution/genesis_tools.py, api.py",
+        "status": "landed",
+        "notes": "Verified in code and in the validated rerun.",
+        "recorded_at": "2026-03-18T15:16:41Z"
+      },
+      {
+        "id": "claim-housekeeping-shipped",
+        "run_id": "2026-03-18-validated-rerun",
+        "claim": "Housekeeping endpoints are live on the shipped API surface.",
+        "source": "stale documentation before the validated rerun",
+        "local_repo_mapping": "api.py route contract",
+        "status": "unsupported",
+        "notes": "Useful experiment, but not a shipped route on the current API surface.",
+        "recorded_at": "2026-03-18T15:16:42Z"
+      }
+    ],
+    "promotion_candidates": [
+      {
+        "id": "promotion-truth-ledger",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Reality Contract / Claim Verifier",
+        "artifact_id": "artifact-truth-ledger",
+        "why_it_matters": "Prevents product narrative from outrunning the code contract.",
+        "evidence": "The validated rerun caught stale housekeeping claims before promotion.",
+        "public_safe_as_is": true,
+        "required_scrub": "Keep examples repo-relative and route-specific.",
+        "promotion_state": "candidate",
+        "recorded_at": "2026-03-18T15:16:50Z"
+      },
+      {
+        "id": "promotion-growth-console",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Growth HUD and Promotion Queue",
+        "artifact_id": "artifact-growth-console-brief",
+        "why_it_matters": "Turns the dashboard into an operator console with actionable promotion state.",
+        "evidence": "Persistent HUD patterns and the validated rerun both point to cross-run review surfaces.",
+        "public_safe_as_is": true,
+        "required_scrub": "Keep the console grounded in shipped APIs and durable records only.",
+        "promotion_state": "queued",
+        "recorded_at": "2026-03-18T15:16:51Z"
+      },
+      {
+        "id": "promotion-growth-registry",
+        "run_id": "2026-03-18-validated-rerun",
+        "title": "Verified Growth Registry",
+        "artifact_id": "artifact-growth-registry-plan",
+        "why_it_matters": "Provides the durable substrate for compounding outputs, claim checks, and promotions across runs.",
+        "evidence": "Validated research and local rerun data both converged on the need for a durable registry before more UI or branch salvage work.",
+        "public_safe_as_is": true,
+        "required_scrub": "Keep the seeded artifact set public-safe and repo-relative.",
+        "promotion_state": "active",
+        "recorded_at": "2026-03-18T15:16:52Z"
+      }
+    ]
+  }
+}

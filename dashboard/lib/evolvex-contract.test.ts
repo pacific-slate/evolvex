@@ -146,6 +146,67 @@ function makeState(overrides: Partial<WorkbenchRawState> = {}): WorkbenchRawStat
     genesisStatus,
     genesisFiles,
     genesisNarrative: "Recent build log",
+    growthLatest: {
+      latest_run_id: "2026-03-18-validated-rerun",
+      counts: {
+        frontier_signals: 4,
+        growth_artifacts: 3,
+        claim_checks: 3,
+        promotion_candidates: 3,
+      },
+      latest_statuses: {
+        growth_artifacts: { validated: 2, queued: 1 },
+        claim_checks: { landed: 2, unsupported: 1 },
+        promotion_candidates: { active: 1, candidate: 1, queued: 1 },
+      },
+      top_candidate: {
+        title: "Verified Growth Registry",
+        artifact_id: "artifact-growth-registry-plan",
+        promotion_state: "active",
+        public_safe_as_is: true,
+      },
+      updated_at: "2026-03-18T15:16:52Z",
+    },
+    growthRuns: [
+      {
+        run_id: "2026-03-18-validated-rerun",
+        counts: {
+          frontier_signals: 4,
+          growth_artifacts: 3,
+          claim_checks: 3,
+          promotion_candidates: 3,
+        },
+        latest_statuses: {
+          growth_artifacts: { validated: 2, queued: 1 },
+          claim_checks: { landed: 2, unsupported: 1 },
+          promotion_candidates: { active: 1, candidate: 1, queued: 1 },
+        },
+        top_candidate: {
+          title: "Verified Growth Registry",
+          artifact_id: "artifact-growth-registry-plan",
+          promotion_state: "active",
+          public_safe_as_is: true,
+        },
+        updated_at: "2026-03-18T15:16:52Z",
+      },
+    ],
+    growthLatestRun: null,
+    growthPromotionQueue: [
+      {
+        id: "promotion-growth-registry",
+        run_id: "2026-03-18-validated-rerun",
+        title: "Verified Growth Registry",
+        artifact_id: "artifact-growth-registry-plan",
+        why_it_matters: "Durable growth substrate",
+        evidence: "validated rerun",
+        public_safe_as_is: true,
+        required_scrub: "none",
+        promotion_state: "active",
+        artifact_path: "ops/nightly/artifacts/2026-03-18_PRIMARY_BUILD_PLAN.md",
+        artifact_status: "validated",
+        artifact_type: "implementation-plan",
+      },
+    ],
     currentCode: "def benchmark(): pass",
     ...overrides,
   };
@@ -222,9 +283,11 @@ describe("overview normalization", () => {
 
     expect(overview.activeModeCount).toBe(2);
     expect(overview.protocolTokenCount).toBe(11);
-    expect(overview.artifactCount).toBe(3);
+    expect(overview.artifactCount).toBe(6);
     expect(overview.safetyChecks).toBe(2);
     expect(overview.lastTrace?.mode).toBe("genesis");
+    expect(overview.metrics.find((metric) => metric.label === "Durable Runs")?.value).toBe("1");
+    expect(overview.metrics.find((metric) => metric.label === "Promotion Queue")?.value).toBe("1");
   });
 
   it("builds mode rail cards with normalized status labels", () => {

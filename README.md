@@ -126,9 +126,10 @@ npm run dev
 
 ## Dashboard
 
-The dashboard is positioned as a workbench rather than a generic dev console.
+The dashboard is positioned as a VS Code-like operator console rather than a generic dev console.
 
 - Above the fold: product thesis, run-readiness, and workflow strip
+- Growth console: registry HUD, recent runs, latest run detail, and promotion queue
 - Left rail: the four experiment types as operator-facing modes
 - Center canvas: mode-specific controls and evidence panels
 - Right inspector: why it matters, what gets captured, and live snapshot details
@@ -137,13 +138,13 @@ The dashboard is positioned as a workbench rather than a generic dev console.
 The frontend uses the current backend contract as-is:
 
 - REST: classic, arena, bootstrap, and genesis start/stop/reset/status endpoints
-- Growth registry: `/api/growth/latest` and `/api/growth/runs/{run_id}`
+- Growth registry: `/api/growth/latest`, `/api/growth/runs`, `/api/growth/runs/{run_id}`, and `/api/growth/promotion-queue`
 - WebSocket: `/ws/evolution`
 - Supporting status views: protocol, artifacts, workspace, and recent narrative endpoints
 
 ## Growth Registry
 
-This branch now includes a lightweight append-only growth registry foundation for post-submission research and promotion work.
+This branch now includes a lightweight append-only growth registry foundation for post-submission research, promotion work, and durable Genesis outputs.
 
 - Canonical storage root: `ops/nightly/registry/`
 - Format: one JSONL file per record family under `ops/nightly/registry/<run_id>/`
@@ -152,15 +153,24 @@ This branch now includes a lightweight append-only growth registry foundation fo
   - `growth_artifacts`
   - `claim_checks`
   - `promotion_candidates`
+- Seeded public-safe validated rerun: `2026-03-18-validated-rerun`
+- Import bundle: `ops/nightly/bundles/2026-03-18-validated-rerun.json`
+- Import command: `python3 scripts/import_growth_bundle.py ops/nightly/bundles/2026-03-18-validated-rerun.json --replace-run`
 
 Read endpoints:
 
 ```bash
 GET /api/growth/latest
+GET /api/growth/runs
 GET /api/growth/runs/{run_id}
+GET /api/growth/promotion-queue
 ```
 
-The registry is intentionally read-only in v1. Writers should use the file helpers in `evolution/growth_registry.py` until the model stabilizes.
+Write paths:
+
+- `evolution/growth_registry.py` exposes append/import helpers for durable records
+- `scripts/import_growth_bundle.py` imports a structured validated run bundle
+- Genesis completion automatically writes a durable growth artifact and review candidate into the registry
 
 ## Experimental Branches
 
@@ -187,4 +197,4 @@ Frontend and backend can be deployed independently.
 Default remote layout:
 
 - frontend checkout: `/opt/evolvex-frontend`
-- backend checkout: `/opt/evolvex`
+- backend checkout: `/opt/evolvex-post-submission-dev`

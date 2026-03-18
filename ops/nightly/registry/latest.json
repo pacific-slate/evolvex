@@ -1,0 +1,31 @@
+{
+  "counts": {
+    "claim_checks": 3,
+    "frontier_signals": 4,
+    "growth_artifacts": 3,
+    "promotion_candidates": 3
+  },
+  "latest_run_id": "2026-03-18-validated-rerun",
+  "latest_statuses": {
+    "claim_checks": {
+      "landed": 2,
+      "unsupported": 1
+    },
+    "growth_artifacts": {
+      "queued": 1,
+      "validated": 2
+    },
+    "promotion_candidates": {
+      "active": 1,
+      "candidate": 1,
+      "queued": 1
+    }
+  },
+  "top_candidate": {
+    "artifact_id": "artifact-growth-registry-plan",
+    "promotion_state": "active",
+    "public_safe_as_is": true,
+    "title": "Verified Growth Registry"
+  },
+  "updated_at": "2026-03-18T17:47:34Z"
+}
