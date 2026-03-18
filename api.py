@@ -233,13 +233,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="EvolveX API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://evolvex.pacslate.com"],
+    allow_origins=[
+        "https://evolvex.pacslate.com",
+        "https://www.evolvex.pacslate.com",
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
 # ── WebSocket broadcast ──────────────────────────────────────────────────────
+def _error_data(exc: Exception, *, phase: str) -> dict[str, str]:
+    return {"message": f"{type(exc).__name__}: {exc}", "phase": phase}
+
+
 async def broadcast(event: dict) -> None:
     payload = json.dumps(event)
     dead = []
@@ -260,7 +268,8 @@ async def ws_evolution(websocket: WebSocket):
         while True:
             await websocket.receive_text()  # keep alive
     except WebSocketDisconnect:
-        _ws_connections.remove(websocket)
+        if websocket in _ws_connections:
+            _ws_connections.remove(websocket)
 
 
 # ── REST endpoints ───────────────────────────────────────────────────────────
@@ -292,8 +301,13 @@ async def start_evolution(req: StartRequest):
                 await broadcast({"event": "cycle_start", "data": {"cycle": i + 1, "of": req.cycles}})
                 async for event in run_cycle(performer, analyzer, modifier, baseline_ms, model=model):  # type: ignore[arg-type]
                     await broadcast(event)
+                    if _stop_requested:
+                        await broadcast({"event": "stopped", "data": {"cycle": i + 1}})
+                        return
 
             await broadcast({"event": "complete", "data": performer.to_dict()})  # type: ignore[union-attr]
+        except Exception as exc:
+            await broadcast({"event": "error", "data": _error_data(exc, phase="classic_run")})
         finally:
             _is_running = False
             _stop_requested = False
@@ -357,6 +371,8 @@ async def start_arena(req: ArenaStartRequest):
                 protocol=arena_protocol,
             ):
                 await broadcast(event)
+        except Exception as exc:
+            await broadcast({"event": "arena_error", "data": _error_data(exc, phase="arena_run")})
         finally:
             _arena_running = False
 
@@ -561,6 +577,8 @@ async def start_genesis(req: GenesisStartRequest):
                 elif ev == "genesis_complete":
                     _genesis_status["files_created"] = data.get("files_created", [])
                     _genesis_status["phase"] = "COMPLETE"
+        except Exception as exc:
+            await broadcast({"event": "genesis_error", "data": _error_data(exc, phase="genesis_run")})
         finally:
             _genesis_running = False
 
