@@ -48,7 +48,12 @@ export function resolveWsUrl({
 export function getRuntimeConfig() {
   const envApiBase = process.env.NEXT_PUBLIC_EVOLVEX_API_URL;
   const envWsUrl = process.env.NEXT_PUBLIC_EVOLVEX_WS_URL;
-  const hostname = typeof window !== "undefined" ? window.location.hostname : undefined;
+  const hostname =
+    typeof window !== "undefined"
+      ? window.location.hostname
+      : process.env.NODE_ENV === "development"
+        ? "localhost"
+        : "evolvex.pacslate.com";
   const apiBase = resolveApiBase(hostname, envApiBase);
 
   return {
