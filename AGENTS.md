@@ -1,7 +1,7 @@
 # EvolveX — Codex Agent Context
 
 ## What This Is
-Self-modifying agent evolution system with two independent modes:
+Self-modifying agent evolution system with five independent modes:
 
 **Classic mode** — Three agents (Performer, Analyzer, Modifier) in a loop:
 benchmark → analyze → propose mutation → sandbox validate → apply or rollback.
@@ -9,6 +9,14 @@ benchmark → analyze → propose mutation → sandbox validate → apply or rol
 **Arena mode** — Adversarial co-evolution across Piaget-inspired cognitive stages.
 Challenger generates problems → Solver attempts them → win/loss → 3 consecutive wins = stage up.
 Full spec: `arena_spec.md`
+
+**Bootstrap mode** — Two peers bootstrap a shared operating language and progressively unlock brokered capabilities.
+
+**Genesis mode** — A single autonomous builder iterates through research, implementation, validation, and assessment.
+
+**Housekeeping mode** — Non-mutating repo stewardship for branch hygiene, checkpoint readiness, docs drift, and validation visibility.
+
+**Housekeeping supervisor** — Approval-gated operator layer that turns housekeeping audits into planned actions and compact factory reports.
 
 ## Cognitive Stages (Arena mode)
 | Stage | Name | Solver strategy |
@@ -25,7 +33,7 @@ Full spec: `arena_spec.md`
 - venv at `.venv/` — always `source .venv/bin/activate` first
 
 ## Key Files
-- `api.py` — FastAPI server, WebSocket broadcast. Classic + Arena endpoints
+- `api.py` — FastAPI server, WebSocket broadcast, and mode control endpoints
 - `agents/performer.py` — executes benchmark tasks, holds evolvable task_code
 - `agents/analyzer.py` — LLM identifies improvements
 - `agents/modifier.py` — LLM generates code mutations
@@ -37,7 +45,11 @@ Full spec: `arena_spec.md`
 - `evolution/challenges.py` — Challenge dataclass, validate_challenge, hardcoded fallbacks
 - `evolution/sandbox.py` — validates ALL mutations before applying (never skip)
 - `evolution/checkpoint.py` — save/restore before every mutation
+- `evolution/housekeeping.py` — repo/worktree audits, checkpoint recommendations, validation snapshots
+- `evolution/housekeeping_supervisor.py` — supervisor report synthesis and approval-gated action planning
 - `tests/test_sandbox.py` + `tests/test_fitness.py` — 13 passing tests
+- `tests/test_housekeeping.py` — housekeeping audit coverage
+- `tests/test_housekeeping_supervisor.py` — supervisor report and action planning coverage
 - `codex_plan.md` — Classic mode execution plan
 - `arena_spec.md` — Arena mode full spec: architecture, event schema, build order
 
@@ -75,6 +87,32 @@ arena_difficulty_up   { new_difficulty }
 arena_complete        { solver_stage, solver_stage_id, total_wins, total_losses, win_rate, ...solver.to_dict() }
 arena_stopped         { round }
 arena_reset           {}
+```
+
+### Housekeeping mode (housekeeping.py → api.py → WS)
+```
+housekeeping_started                 { repo_root, interval_seconds, run_quality_checks, max_cycles }
+housekeeping_cycle_start             { cycle }
+housekeeping_audit                   { cycle, overall_state, auditors, worktrees, checkpoint_recommendation }
+housekeeping_warn                    { cycle, scope, summary, evidence }
+housekeeping_block                   { cycle, scope, summary, evidence }
+housekeeping_checkpoint_recommended  { cycle, worktrees, summary }
+housekeeping_complete                { cycles, overall_state }
+housekeeping_stopped                 { cycle }
+housekeeping_reset                   {}
+housekeeping_error                   { message, phase }
+```
+
+### Housekeeping supervisor mode (housekeeping_supervisor.py → api.py → WS)
+```
+housekeeping_supervisor_started         { repo_root, interval_seconds, run_quality_checks, max_cycles }
+housekeeping_supervisor_cycle_start     { cycle }
+housekeeping_supervisor_report          { cycle, overall_status, active_risks, planned_actions, ... }
+housekeeping_supervisor_action_planned  { cycle, scope, action_type, approval_required, summary, reason, suggested_command }
+housekeeping_supervisor_complete        { cycles, overall_status, planned_action_count }
+housekeeping_supervisor_stopped         { cycle }
+housekeeping_supervisor_reset           {}
+housekeeping_supervisor_error           { message, phase }
 ```
 
 ## Rules

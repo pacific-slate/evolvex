@@ -20,6 +20,12 @@ Genesis mode:
 - GET  /api/genesis/workspace — list workspace files
 - GET  /api/genesis/narrative — latest BUILD_LOG.md content
 
+Housekeeping mode:
+- POST /api/housekeeping/start  — begin periodic repo stewardship audits
+- POST /api/housekeeping/stop
+- POST /api/housekeeping/reset
+- GET  /api/housekeeping/status
+
 WS /ws/evolution          — real-time event stream (all modes share this channel)
 """
 
@@ -27,12 +33,13 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agents.performer import Performer
 from agents.analyzer import Analyzer
@@ -51,9 +58,12 @@ from evolution.bootstrap_protocol import BootstrapProtocol
 from evolution.genesis import run_genesis
 from evolution.genesis_sandbox import WORKSPACE_ROOT, ensure_workspace
 from evolution.genesis_tools import TOOL_DEFINITIONS
+from evolution.housekeeping import collect_housekeeping_snapshot, run_housekeeping
+from evolution.housekeeping_supervisor import plan_supervisor_actions, run_housekeeping_supervisor
 from evolution.protocol import Protocol
 
 load_dotenv()
+REPO_ROOT = Path(__file__).resolve().parent
 
 # ── Shared state ────────────────────────────────────────────────────────────
 performer: Performer | None = None
@@ -95,6 +105,35 @@ _genesis_status: dict = {
     "pricing_known": True,
     "files_created": [],
     "last_assessment": None,
+}
+_housekeeping_running = False
+_housekeeping_stop_flag: list[bool] = [False]
+_housekeeping_status: dict = {
+    "cycle": 0,
+    "interval_seconds": 300,
+    "run_quality_checks": True,
+    "max_cycles": None,
+    "overall_state": "idle",
+    "repo_root": str(REPO_ROOT),
+    "latest_audits": [],
+    "worktrees": [],
+    "checkpoint_recommendation": None,
+    "recent_findings": [],
+    "history": [],
+}
+_housekeeping_supervisor_running = False
+_housekeeping_supervisor_stop_flag: list[bool] = [False]
+_housekeeping_supervisor_status: dict = {
+    "cycle": 0,
+    "interval_seconds": 300,
+    "run_quality_checks": True,
+    "max_cycles": None,
+    "overall_status": "idle",
+    "repo_root": str(REPO_ROOT),
+    "latest_report": None,
+    "planned_actions": [],
+    "active_risks": [],
+    "history": [],
 }
 
 
@@ -201,6 +240,139 @@ def restore_bootstrap_from_checkpoint() -> None:
             "completed": bool(checkpoint.get("completed", False)),
         }
     )
+
+
+def reset_housekeeping_status() -> None:
+    global _housekeeping_status
+    _housekeeping_status = {
+        "cycle": 0,
+        "interval_seconds": 300,
+        "run_quality_checks": True,
+        "max_cycles": None,
+        "overall_state": "idle",
+        "repo_root": str(REPO_ROOT),
+        "latest_audits": [],
+        "worktrees": [],
+        "checkpoint_recommendation": None,
+        "recent_findings": [],
+        "history": [],
+    }
+
+
+def update_housekeeping_status(event: dict) -> None:
+    global _housekeeping_status
+    name = event.get("event", "")
+    data = event.get("data", {})
+
+    if name == "housekeeping_started":
+        _housekeeping_status.update(
+            {
+                "cycle": 0,
+                "interval_seconds": data.get("interval_seconds", _housekeeping_status["interval_seconds"]),
+                "run_quality_checks": data.get("run_quality_checks", _housekeeping_status["run_quality_checks"]),
+                "max_cycles": data.get("max_cycles", _housekeeping_status["max_cycles"]),
+                "repo_root": data.get("repo_root", _housekeeping_status["repo_root"]),
+                "overall_state": "ok",
+                "latest_audits": [],
+                "checkpoint_recommendation": None,
+                "recent_findings": [],
+            }
+        )
+    elif name == "housekeeping_cycle_start":
+        _housekeeping_status["cycle"] = data.get("cycle", _housekeeping_status["cycle"])
+    elif name == "housekeeping_audit":
+        _housekeeping_status["cycle"] = data.get("cycle", _housekeeping_status["cycle"])
+        _housekeeping_status["overall_state"] = data.get("overall_state", _housekeeping_status["overall_state"])
+        _housekeeping_status["latest_audits"] = data.get("auditors", [])
+        _housekeeping_status["worktrees"] = data.get("worktrees", [])
+        _housekeeping_status["checkpoint_recommendation"] = data.get("checkpoint_recommendation")
+        history = _housekeeping_status.get("history", [])
+        history.append(
+            {
+                "cycle": data.get("cycle", _housekeeping_status["cycle"]),
+                "overall_state": data.get("overall_state", "ok"),
+                "timestamp": data.get("timestamp"),
+            }
+        )
+        _housekeeping_status["history"] = history[-20:]
+    elif name in {"housekeeping_warn", "housekeeping_block"}:
+        findings = _housekeeping_status.get("recent_findings", [])
+        findings.append(
+            {
+                "cycle": data.get("cycle"),
+                "scope": data.get("scope"),
+                "state": data.get("state"),
+                "summary": data.get("summary"),
+            }
+        )
+        _housekeeping_status["recent_findings"] = findings[-20:]
+    elif name == "housekeeping_checkpoint_recommended":
+        _housekeeping_status["checkpoint_recommendation"] = data
+    elif name == "housekeeping_reset":
+        reset_housekeeping_status()
+
+
+def reset_housekeeping_supervisor_status() -> None:
+    global _housekeeping_supervisor_status
+    _housekeeping_supervisor_status = {
+        "cycle": 0,
+        "interval_seconds": 300,
+        "run_quality_checks": True,
+        "max_cycles": None,
+        "overall_status": "idle",
+        "repo_root": str(REPO_ROOT),
+        "latest_report": None,
+        "planned_actions": [],
+        "active_risks": [],
+        "history": [],
+    }
+
+
+def update_housekeeping_supervisor_status(event: dict) -> None:
+    global _housekeeping_supervisor_status
+    name = event.get("event", "")
+    data = event.get("data", {})
+
+    if name == "housekeeping_supervisor_started":
+        _housekeeping_supervisor_status.update(
+            {
+                "cycle": 0,
+                "interval_seconds": data.get(
+                    "interval_seconds", _housekeeping_supervisor_status["interval_seconds"]
+                ),
+                "run_quality_checks": data.get(
+                    "run_quality_checks", _housekeeping_supervisor_status["run_quality_checks"]
+                ),
+                "max_cycles": data.get("max_cycles", _housekeeping_supervisor_status["max_cycles"]),
+                "repo_root": data.get("repo_root", _housekeeping_supervisor_status["repo_root"]),
+                "overall_status": "ok",
+                "latest_report": None,
+                "planned_actions": [],
+                "active_risks": [],
+            }
+        )
+    elif name == "housekeeping_supervisor_cycle_start":
+        _housekeeping_supervisor_status["cycle"] = data.get("cycle", _housekeeping_supervisor_status["cycle"])
+    elif name == "housekeeping_supervisor_report":
+        _housekeeping_supervisor_status["cycle"] = data.get("cycle", _housekeeping_supervisor_status["cycle"])
+        _housekeeping_supervisor_status["overall_status"] = data.get(
+            "overall_status", _housekeeping_supervisor_status["overall_status"]
+        )
+        _housekeeping_supervisor_status["latest_report"] = data
+        _housekeeping_supervisor_status["planned_actions"] = data.get("planned_actions", [])
+        _housekeeping_supervisor_status["active_risks"] = data.get("active_risks", [])
+        history = _housekeeping_supervisor_status.get("history", [])
+        history.append(
+            {
+                "cycle": data.get("cycle", _housekeeping_supervisor_status["cycle"]),
+                "overall_status": data.get("overall_status", "ok"),
+                "timestamp": data.get("timestamp"),
+                "planned_action_count": len(data.get("planned_actions", [])),
+            }
+        )
+        _housekeeping_supervisor_status["history"] = history[-20:]
+    elif name == "housekeeping_supervisor_reset":
+        reset_housekeeping_supervisor_status()
 
 
 @asynccontextmanager
@@ -643,3 +815,148 @@ async def get_genesis_narrative():
         return {"content": None}
     content = log_path.read_text(encoding="utf-8", errors="replace")
     return {"content": content[-4000:] if len(content) > 4000 else content}
+
+
+# ── Housekeeping endpoints ───────────────────────────────────────────────────
+
+class HousekeepingStartRequest(BaseModel):
+    interval_seconds: int = Field(default=300, ge=0, le=3600)
+    run_quality_checks: bool = True
+    max_cycles: int | None = Field(default=None, ge=1, le=1000)
+
+
+@app.post("/api/housekeeping/start")
+async def start_housekeeping(req: HousekeepingStartRequest):
+    global _housekeeping_running, _housekeeping_stop_flag
+    if _housekeeping_running:
+        return {"error": "housekeeping already running"}
+
+    async def _run():
+        global _housekeeping_running, _housekeeping_stop_flag
+        _housekeeping_running = True
+        _housekeeping_stop_flag = [False]
+        try:
+            async for event in run_housekeeping(
+                repo_root=REPO_ROOT,
+                interval_seconds=req.interval_seconds,
+                run_quality_checks=req.run_quality_checks,
+                max_cycles=req.max_cycles,
+                stop_flag=_housekeeping_stop_flag,
+            ):
+                update_housekeeping_status(event)
+                await broadcast(event)
+        except Exception as exc:
+            await broadcast({"event": "housekeeping_error", "data": _error_data(exc, phase="housekeeping_run")})
+        finally:
+            _housekeeping_running = False
+
+    asyncio.create_task(_run())
+    return {
+        "status": "started",
+        "interval_seconds": req.interval_seconds,
+        "run_quality_checks": req.run_quality_checks,
+        "max_cycles": req.max_cycles,
+    }
+
+
+@app.post("/api/housekeeping/stop")
+async def stop_housekeeping():
+    global _housekeeping_stop_flag
+    if not _housekeeping_running:
+        return {"error": "housekeeping not running"}
+    _housekeeping_stop_flag[0] = True
+    return {"status": "stopping"}
+
+
+@app.post("/api/housekeeping/reset")
+async def reset_housekeeping():
+    if _housekeeping_running:
+        return {"error": "cannot reset while running — stop first"}
+    reset_housekeeping_status()
+    await broadcast({"event": "housekeeping_reset", "data": {}})
+    return {"status": "reset"}
+
+
+@app.get("/api/housekeeping/status")
+async def get_housekeeping_status():
+    return {
+        "status": "running" if _housekeeping_running else "idle",
+        **_housekeeping_status,
+    }
+
+
+@app.get("/api/housekeeping/report")
+async def get_housekeeping_report(run_quality_checks: bool = True):
+    snapshot = await asyncio.to_thread(collect_housekeeping_snapshot, REPO_ROOT, run_quality_checks)
+    snapshot["cycle"] = _housekeeping_status.get("cycle", 0)
+    return snapshot
+
+
+@app.get("/api/housekeeping/supervisor/report")
+async def get_housekeeping_supervisor_report(run_quality_checks: bool = True):
+    snapshot = await asyncio.to_thread(collect_housekeeping_snapshot, REPO_ROOT, run_quality_checks)
+    report = plan_supervisor_actions(snapshot)
+    report["cycle"] = _housekeeping_supervisor_status.get("cycle", 0)
+    return report
+
+
+@app.post("/api/housekeeping/supervisor/start")
+async def start_housekeeping_supervisor(req: HousekeepingStartRequest):
+    global _housekeeping_supervisor_running, _housekeeping_supervisor_stop_flag
+    if _housekeeping_supervisor_running:
+        return {"error": "housekeeping supervisor already running"}
+
+    async def _run():
+        global _housekeeping_supervisor_running, _housekeeping_supervisor_stop_flag
+        _housekeeping_supervisor_running = True
+        _housekeeping_supervisor_stop_flag = [False]
+        try:
+            async for event in run_housekeeping_supervisor(
+                repo_root=REPO_ROOT,
+                interval_seconds=req.interval_seconds,
+                run_quality_checks=req.run_quality_checks,
+                max_cycles=req.max_cycles,
+                stop_flag=_housekeeping_supervisor_stop_flag,
+            ):
+                update_housekeeping_supervisor_status(event)
+                await broadcast(event)
+        except Exception as exc:
+            await broadcast(
+                {"event": "housekeeping_supervisor_error", "data": _error_data(exc, phase="housekeeping_supervisor_run")}
+            )
+        finally:
+            _housekeeping_supervisor_running = False
+
+    asyncio.create_task(_run())
+    return {
+        "status": "started",
+        "interval_seconds": req.interval_seconds,
+        "run_quality_checks": req.run_quality_checks,
+        "max_cycles": req.max_cycles,
+    }
+
+
+@app.post("/api/housekeeping/supervisor/stop")
+async def stop_housekeeping_supervisor():
+    global _housekeeping_supervisor_stop_flag
+    if not _housekeeping_supervisor_running:
+        return {"error": "housekeeping supervisor not running"}
+    _housekeeping_supervisor_stop_flag[0] = True
+    return {"status": "stopping"}
+
+
+@app.post("/api/housekeeping/supervisor/reset")
+async def reset_housekeeping_supervisor():
+    if _housekeeping_supervisor_running:
+        return {"error": "cannot reset while running — stop first"}
+    reset_housekeeping_supervisor_status()
+    await broadcast({"event": "housekeeping_supervisor_reset", "data": {}})
+    return {"status": "reset"}
+
+
+@app.get("/api/housekeeping/supervisor/status")
+async def get_housekeeping_supervisor_status():
+    return {
+        "status": "running" if _housekeeping_supervisor_running else "idle",
+        **_housekeeping_supervisor_status,
+    }
