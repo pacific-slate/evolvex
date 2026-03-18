@@ -4,7 +4,7 @@ import { formatBytes, formatCurrency, formatPercent, getModeTheme } from "@/lib/
 import { sanitizeRunCount } from "@/lib/evolvex-normalize";
 import type { EvolvexDashboardController } from "@/hooks/use-evolvex-dashboard";
 
-import { Panel, StatusPill } from "./workbench-shell";
+import { MetricCard, Panel, StatusPill } from "./workbench-shell";
 
 const BOOTSTRAP_STAGE_LABELS = [
   { id: 0, name: "Handshake", detail: "Start with messaging and scratch space. No real power yet." },
@@ -134,6 +134,10 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
       </div>
     </div>
   );
+}
+
+function formatPeerTelemetryValue(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function TraceMiniList({ trace }: { trace: EvolvexDashboardController["derived"]["currentTrace"] }) {
@@ -500,10 +504,26 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
                   </div>
                   <StatusPill tone="active">{peer.message_count} messages</StatusPill>
                 </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <ScoreBar label="Contribution" value={Math.round(peer.contribution_score * 100)} />
-                  <ScoreBar label="Dependency" value={Math.round(peer.dependency_score * 100)} />
-                  <ScoreBar label="Accepted" value={Math.min(peer.accepted_proposals * 20, 100)} />
+                <div className="mt-5 auto-grid-compact">
+                  <MetricCard
+                    label="Contribution Pts"
+                    value={formatPeerTelemetryValue(peer.contribution_score)}
+                    helper="Weighted output across peer messages and review decisions."
+                  />
+                  <MetricCard
+                    label="Dependency Turns"
+                    value={formatPeerTelemetryValue(peer.dependency_score)}
+                    helper="Messages that explicitly incorporated the other peer's input."
+                  />
+                  <MetricCard
+                    label="Accepted Proposals"
+                    value={String(peer.accepted_proposals)}
+                    helper={
+                      peer.rejected_proposals
+                        ? `${peer.rejected_proposals} revise/reject decisions recorded.`
+                        : "No revise/reject decisions recorded."
+                    }
+                  />
                 </div>
                 <p className="mt-4 text-sm leading-7 text-white/55">
                   Cost so far: {formatCurrency(peer.total_cost_usd)}{peer.cached_prompt_tokens ? ` · cached prompt tokens ${peer.cached_prompt_tokens}` : ""}
