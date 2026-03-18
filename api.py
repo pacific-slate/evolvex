@@ -39,10 +39,15 @@ from agents.analyzer import Analyzer
 from agents.modifier import Modifier
 from agents.solver import Solver
 from agents.challenger import Challenger
+from agents.bootstrap_peer import BootstrapPeer
 from agents.meta_agent import MetaAgent
 from evolution.loop import run_cycle, _BENCHMARK_DATA
 from evolution.checkpoint import clear as clear_checkpoints
 from evolution.arena import run_arena
+from evolution.bootstrap import run_bootstrap
+from evolution.bootstrap_broker import BootstrapBroker
+from evolution.bootstrap_curriculum import BOOTSTRAP_STAGES
+from evolution.bootstrap_protocol import BootstrapProtocol
 from evolution.genesis import run_genesis
 from evolution.genesis_sandbox import WORKSPACE_ROOT, ensure_workspace
 from evolution.genesis_tools import TOOL_DEFINITIONS
@@ -57,11 +62,28 @@ modifier: Modifier | None = None
 solver: Solver | None = None
 challenger: Challenger | None = None
 arena_protocol: Protocol | None = None
+bootstrap_peer_a: BootstrapPeer | None = None
+bootstrap_peer_b: BootstrapPeer | None = None
+bootstrap_broker: BootstrapBroker | None = None
+bootstrap_protocol: BootstrapProtocol | None = None
 _ws_connections: list[WebSocket] = []
 _is_running = False
 _stop_requested = False
 _arena_running = False
 _arena_stop_flag: list[bool] = [False]
+_bootstrap_running = False
+_bootstrap_stop_flag: list[bool] = [False]
+_bootstrap_status: dict = {
+    "stage": BOOTSTRAP_STAGES[0].name,
+    "stage_id": BOOTSTRAP_STAGES[0].id,
+    "round": 0,
+    "target_rounds": 0,
+    "objective": BOOTSTRAP_STAGES[0].objective,
+    "unlocked_capabilities": list(BOOTSTRAP_STAGES[0].allowed_capabilities),
+    "assessment": None,
+    "resumable": False,
+    "completed": False,
+}
 
 # Genesis state
 _genesis_running = False
@@ -70,6 +92,7 @@ _genesis_status: dict = {
     "phase": "IDLE",
     "iteration": 0,
     "total_cost_usd": 0.0,
+    "pricing_known": True,
     "files_created": [],
     "last_assessment": None,
 }
@@ -82,9 +105,108 @@ def require_openai_model() -> str:
     return model
 
 
+def reset_bootstrap_status() -> None:
+    global _bootstrap_status
+    _bootstrap_status = {
+        "stage": BOOTSTRAP_STAGES[0].name,
+        "stage_id": BOOTSTRAP_STAGES[0].id,
+        "round": 0,
+        "target_rounds": 0,
+        "objective": BOOTSTRAP_STAGES[0].objective,
+        "unlocked_capabilities": list(BOOTSTRAP_STAGES[0].allowed_capabilities),
+        "assessment": None,
+        "resumable": False,
+        "completed": False,
+    }
+
+
+def update_bootstrap_status(event: dict) -> None:
+    global _bootstrap_status
+    name = event.get("event", "")
+    data = event.get("data", {})
+    if name == "bootstrap_started":
+        _bootstrap_status.update(
+            {
+                "stage": data.get("stage", _bootstrap_status["stage"]),
+                "stage_id": data.get("stage_id", _bootstrap_status["stage_id"]),
+                "target_rounds": data.get("rounds", _bootstrap_status["target_rounds"]),
+                "objective": data.get("objective", _bootstrap_status["objective"]),
+                "unlocked_capabilities": data.get(
+                    "unlocked_capabilities", _bootstrap_status["unlocked_capabilities"]
+                ),
+                "round": 0,
+                "resumable": bool(data.get("resumed_from_checkpoint", False)),
+                "completed": False,
+            }
+        )
+    elif name == "bootstrap_resumed":
+        _bootstrap_status["round"] = data.get("from_round", _bootstrap_status["round"])
+        _bootstrap_status["target_rounds"] = data.get("target_rounds", _bootstrap_status["target_rounds"])
+        _bootstrap_status["resumable"] = True
+    elif name == "bootstrap_round_start":
+        _bootstrap_status["round"] = data.get("round", _bootstrap_status["round"])
+    elif name == "bootstrap_objective":
+        _bootstrap_status["objective"] = data.get("objective", _bootstrap_status["objective"])
+        _bootstrap_status["unlocked_capabilities"] = data.get(
+            "allowed_capabilities", _bootstrap_status["unlocked_capabilities"]
+        )
+    elif name == "bootstrap_stage_up":
+        _bootstrap_status.update(
+            {
+                "stage": data.get("stage", _bootstrap_status["stage"]),
+                "stage_id": data.get("stage_id", _bootstrap_status["stage_id"]),
+                "unlocked_capabilities": data.get(
+                    "unlocked_capabilities", _bootstrap_status["unlocked_capabilities"]
+                ),
+            }
+        )
+    elif name == "bootstrap_assessment" and data.get("source") == "system":
+        _bootstrap_status["assessment"] = data.get("assessment")
+    elif name == "bootstrap_complete":
+        _bootstrap_status["assessment"] = data.get("assessment")
+        _bootstrap_status["stage"] = data.get("stage", _bootstrap_status["stage"])
+        _bootstrap_status["stage_id"] = data.get("stage_id", _bootstrap_status["stage_id"])
+        _bootstrap_status["completed"] = True
+        _bootstrap_status["resumable"] = False
+        _bootstrap_status["round"] = _bootstrap_status.get("target_rounds", _bootstrap_status["round"])
+    elif name == "bootstrap_stopped":
+        _bootstrap_status["resumable"] = True
+    elif name == "bootstrap_reset":
+        reset_bootstrap_status()
+
+
+def restore_bootstrap_from_checkpoint() -> None:
+    if bootstrap_broker is None or bootstrap_protocol is None or bootstrap_peer_a is None or bootstrap_peer_b is None:
+        return
+    checkpoint = bootstrap_broker.load_checkpoint()
+    if not checkpoint:
+        reset_bootstrap_status()
+        return
+    bootstrap_protocol.restore_state(checkpoint.get("protocol"))
+    bootstrap_peer_a.restore_state(checkpoint.get("peer_a"))
+    bootstrap_peer_b.restore_state(checkpoint.get("peer_b"))
+    bootstrap_broker.restore_state(checkpoint.get("broker"))
+    stage_id = min(int(checkpoint.get("stage_index", 0)), len(BOOTSTRAP_STAGES) - 1)
+    stage = BOOTSTRAP_STAGES[stage_id]
+    _bootstrap_status.update(
+        {
+            "stage": stage.name,
+            "stage_id": stage.id,
+            "round": int(checkpoint.get("round", 0)),
+            "target_rounds": int(checkpoint.get("target_rounds", 0)),
+            "objective": stage.objective,
+            "unlocked_capabilities": list(stage.allowed_capabilities),
+            "assessment": checkpoint.get("system_assessment"),
+            "resumable": not bool(checkpoint.get("completed", False)),
+            "completed": bool(checkpoint.get("completed", False)),
+        }
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global performer, analyzer, modifier, solver, challenger, arena_protocol
+    global bootstrap_peer_a, bootstrap_peer_b, bootstrap_broker, bootstrap_protocol
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
     model = require_openai_model()
     performer = Performer()
@@ -93,11 +215,18 @@ async def lifespan(app: FastAPI):
     arena_protocol = Protocol()
     solver = Solver(client, protocol=arena_protocol)
     challenger = Challenger(client, protocol=arena_protocol)
+    bootstrap_peer_a = BootstrapPeer("Peer A", client)
+    bootstrap_peer_b = BootstrapPeer("Peer B", client)
+    bootstrap_broker = BootstrapBroker()
+    bootstrap_protocol = BootstrapProtocol()
     # Store model preference on agents for use in loop/arena
     analyzer._model = model  # type: ignore[attr-defined]
     modifier._model = model  # type: ignore[attr-defined]
     solver._model = model    # type: ignore[attr-defined]
     challenger._model = model  # type: ignore[attr-defined]
+    bootstrap_peer_a._model = model  # type: ignore[attr-defined]
+    bootstrap_peer_b._model = model  # type: ignore[attr-defined]
+    restore_bootstrap_from_checkpoint()
     yield
 
 
@@ -279,6 +408,106 @@ async def get_arena_protocol():
     return arena_protocol.to_dict()
 
 
+# ── Bootstrap endpoints ─────────────────────────────────────────────────────
+class BootstrapStartRequest(BaseModel):
+    rounds: int = 12
+
+
+@app.post("/api/bootstrap/start")
+async def start_bootstrap(req: BootstrapStartRequest):
+    global _bootstrap_running, _bootstrap_stop_flag
+    if _bootstrap_running:
+        return {"error": "bootstrap already running"}
+    model = require_openai_model()
+
+    async def _run():
+        global _bootstrap_running, _bootstrap_stop_flag
+        _bootstrap_running = True
+        _bootstrap_stop_flag = [False]
+        try:
+            async for event in run_bootstrap(  # type: ignore[arg-type]
+                bootstrap_peer_a,
+                bootstrap_peer_b,
+                req.rounds,
+                model=model,
+                broker=bootstrap_broker,
+                protocol=bootstrap_protocol,
+                stop_flag=_bootstrap_stop_flag,
+            ):
+                update_bootstrap_status(event)
+                await broadcast(event)
+        except Exception as exc:
+            await broadcast(
+                {
+                    "event": "bootstrap_error",
+                    "data": {"message": f"{type(exc).__name__}: {exc}", "phase": "bootstrap_run"},
+                }
+            )
+            restore_bootstrap_from_checkpoint()
+        finally:
+            _bootstrap_running = False
+
+    asyncio.create_task(_run())
+    return {"status": "started", "rounds": req.rounds}
+
+
+@app.post("/api/bootstrap/stop")
+async def stop_bootstrap():
+    global _bootstrap_stop_flag
+    if not _bootstrap_running:
+        return {"error": "bootstrap not running"}
+    _bootstrap_stop_flag[0] = True
+    return {"status": "stopping"}
+
+
+@app.post("/api/bootstrap/reset")
+async def reset_bootstrap():
+    global bootstrap_peer_a, bootstrap_peer_b, bootstrap_broker, bootstrap_protocol
+    if _bootstrap_running:
+        return {"error": "cannot reset while running — stop first"}
+    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    model = require_openai_model()
+    bootstrap_peer_a = BootstrapPeer("Peer A", client)
+    bootstrap_peer_b = BootstrapPeer("Peer B", client)
+    bootstrap_peer_a._model = model  # type: ignore[attr-defined]
+    bootstrap_peer_b._model = model  # type: ignore[attr-defined]
+    bootstrap_broker = BootstrapBroker()
+    bootstrap_broker.reset()
+    bootstrap_protocol = BootstrapProtocol()
+    reset_bootstrap_status()
+    await broadcast({"event": "bootstrap_reset", "data": {}})
+    return {"status": "reset"}
+
+
+@app.get("/api/bootstrap/status")
+async def get_bootstrap_status():
+    if bootstrap_peer_a is None or bootstrap_peer_b is None or bootstrap_broker is None or bootstrap_protocol is None:
+        return {"status": "not_initialized"}
+    return {
+        "status": "running" if _bootstrap_running else "idle",
+        **_bootstrap_status,
+        "peer_a": bootstrap_peer_a.to_dict(),
+        "peer_b": bootstrap_peer_b.to_dict(),
+        "protocol": bootstrap_protocol.to_dict(),
+        "artifacts": bootstrap_broker.list_artifacts(),
+        "run_cost_usd": round(bootstrap_peer_a.total_cost_usd + bootstrap_peer_b.total_cost_usd, 4),
+    }
+
+
+@app.get("/api/bootstrap/protocol")
+async def get_bootstrap_protocol():
+    if bootstrap_protocol is None:
+        return {"status": "not_initialized"}
+    return bootstrap_protocol.to_dict()
+
+
+@app.get("/api/bootstrap/artifacts")
+async def get_bootstrap_artifacts():
+    if bootstrap_broker is None:
+        return {"status": "not_initialized"}
+    return {"files": bootstrap_broker.list_artifacts(), "workspace": str(bootstrap_broker.workspace_root)}
+
+
 # ── Genesis endpoints ────────────────────────────────────────────────────────
 
 class GenesisStartRequest(BaseModel):
@@ -301,6 +530,7 @@ async def start_genesis(req: GenesisStartRequest):
             "phase": "RESEARCH",
             "iteration": 0,
             "total_cost_usd": 0.0,
+            "pricing_known": True,
             "files_created": [],
             "last_assessment": None,
         }
@@ -321,6 +551,7 @@ async def start_genesis(req: GenesisStartRequest):
                     _genesis_status["iteration"] = data.get("iteration", _genesis_status["iteration"])
                 elif ev == "genesis_token_usage":
                     _genesis_status["total_cost_usd"] = data.get("total_cost_usd", 0.0)
+                    _genesis_status["pricing_known"] = data.get("pricing_known", True)
                 elif ev == "genesis_assessment":
                     _genesis_status["last_assessment"] = data.get("scores")
                 elif ev == "genesis_file_changed":
@@ -359,6 +590,7 @@ async def reset_genesis():
         "phase": "IDLE",
         "iteration": 0,
         "total_cost_usd": 0.0,
+        "pricing_known": True,
         "files_created": [],
         "last_assessment": None,
     }

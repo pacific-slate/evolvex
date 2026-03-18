@@ -41,6 +41,68 @@ type ProtocolState = {
   round_history: { round: number; compression_ratio: number; vocab_size: number }[];
 };
 
+type BootstrapPeerState = {
+  name: string;
+  generation: number;
+  fitness_score: number;
+  mutation_count: number;
+  message_count: number;
+  accepted_proposals: number;
+  rejected_proposals: number;
+  contribution_score: number;
+  dependency_score: number;
+  total_cost_usd: number;
+};
+
+type BootstrapProtocolEntry = {
+  token: string;
+  meaning: string;
+  proposed_by: string;
+  accepted_by: string | null;
+  state: "pending" | "adopted" | "stable";
+  round_created: number;
+  usage_count: number;
+  first_used_round: number | null;
+  stable_round: number | null;
+};
+
+type BootstrapProtocolState = {
+  vocabulary: BootstrapProtocolEntry[];
+  vocab_size: number;
+  stable_tokens: number;
+  utilization_rate: number;
+  round_history: {
+    round: number;
+    compression_ratio: number;
+    vocab_size: number;
+    stable_tokens: number;
+  }[];
+};
+
+type BootstrapAssessment = {
+  stage: string;
+  collaboration: number;
+  language: number;
+  traceability: number;
+  autonomy: number;
+  overall: number;
+};
+
+type BootstrapStatus = {
+  status: string;
+  stage: string;
+  stage_id: number;
+  round: number;
+  objective: string;
+  unlocked_capabilities: string[];
+  assessment: BootstrapAssessment | null;
+  peer_a: BootstrapPeerState;
+  peer_b: BootstrapPeerState;
+  protocol: BootstrapProtocolState;
+  artifacts: GenesisFile[];
+  run_cost_usd: number;
+};
+
 type GenesisScores = {
   reasoning: number;
   tool_use: number;
@@ -56,6 +118,7 @@ type GenesisStatus = {
   phase: string;
   iteration: number;
   total_cost_usd: number;
+  pricing_known?: boolean;
   files_created: string[];
   last_assessment: GenesisScores | null;
 };
@@ -106,6 +169,26 @@ const EVENT_COLORS: Record<string, string> = {
   arena_complete: "text-green-300",
   arena_stopped: "text-slate-500",
   arena_reset: "text-slate-600",
+  // Bootstrap mode
+  bootstrap_started: "text-sky-300",
+  bootstrap_resumed: "text-cyan-300",
+  bootstrap_round_start: "text-slate-400",
+  bootstrap_objective: "text-cyan-300",
+  bootstrap_peer_message: "text-blue-300",
+  bootstrap_protocol_proposed: "text-violet-300",
+  bootstrap_protocol_adopted: "text-emerald-300",
+  bootstrap_protocol_pruned: "text-slate-500",
+  bootstrap_tool_requested: "text-amber-300",
+  bootstrap_tool_executed: "text-emerald-400",
+  bootstrap_tool_rejected: "text-red-400",
+  bootstrap_artifact_changed: "text-sky-400",
+  bootstrap_stage_up: "text-yellow-300",
+  bootstrap_injection: "text-orange-300",
+  bootstrap_assessment: "text-teal-300",
+  bootstrap_complete: "text-green-300",
+  bootstrap_stopped: "text-slate-500",
+  bootstrap_reset: "text-slate-600",
+  bootstrap_error: "text-red-500",
   // Protocol events
   arena_protocol_entry: "text-cyan-300",
   arena_protocol_used: "text-teal-400",
@@ -148,13 +231,18 @@ function compressionColor(ratio: number): string {
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<"classic" | "arena" | "genesis">("classic");
+  const [mode, setMode] = useState<"classic" | "arena" | "bootstrap" | "genesis">("classic");
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
   const [agent, setAgent] = useState<AgentState | null>(null);
   const [solver, setSolver] = useState<SolverState | null>(null);
   const [protocol, setProtocol] = useState<ProtocolState | null>(null);
   const [running, setRunning] = useState(false);
   const [arenaRunning, setArenaRunning] = useState(false);
+  const [bootstrapRunning, setBootstrapRunning] = useState(false);
+  const [bootstrapRounds, setBootstrapRounds] = useState(12);
+  const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null);
+  const [bootstrapProtocol, setBootstrapProtocol] = useState<BootstrapProtocolState | null>(null);
+  const [bootstrapArtifacts, setBootstrapArtifacts] = useState<GenesisFile[]>([]);
   const [cycles, setCycles] = useState(5);
   const [arenaRounds, setArenaRounds] = useState(10);
   const [connected, setConnected] = useState(false);
@@ -218,6 +306,26 @@ export default function Home() {
             .catch(() => null);
         }
 
+        // Bootstrap mode state
+        if (ev.event === "bootstrap_started") setBootstrapRunning(true);
+        if (ev.event === "bootstrap_stopped" || ev.event === "bootstrap_complete") setBootstrapRunning(false);
+        if (ev.event.startsWith("bootstrap_")) {
+          fetch(`${API}/api/bootstrap/status`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (!d.error) setBootstrapStatus(d as BootstrapStatus);
+            })
+            .catch(() => null);
+          fetch(`${API}/api/bootstrap/protocol`)
+            .then((r) => r.json())
+            .then((d) => setBootstrapProtocol(d as BootstrapProtocolState))
+            .catch(() => null);
+          fetch(`${API}/api/bootstrap/artifacts`)
+            .then((r) => r.json())
+            .then((d) => setBootstrapArtifacts((d.files ?? []) as GenesisFile[]))
+            .catch(() => null);
+        }
+
         // Genesis mode state
         if (ev.event === "genesis_started") setGenesisRunning(true);
         if (ev.event === "genesis_stopped" || ev.event === "genesis_complete" || ev.event === "genesis_error") {
@@ -226,10 +334,11 @@ export default function Home() {
         if (ev.event.startsWith("genesis_")) {
           // Update status from the event data
           setGenesisStatus((prev) => {
-            const next = { ...(prev ?? { running: false, phase: "RESEARCH", iteration: 0, total_cost_usd: 0, files_created: [], last_assessment: null }) };
+            const next = { ...(prev ?? { running: false, phase: "RESEARCH", iteration: 0, total_cost_usd: 0, pricing_known: true, files_created: [], last_assessment: null }) };
             if (ev.event === "genesis_phase_change") next.phase = (ev.data.new_phase as string) ?? next.phase;
             if (ev.event === "genesis_tool_call") next.iteration = (ev.data.iteration as number) ?? next.iteration;
             if (ev.event === "genesis_token_usage") next.total_cost_usd = (ev.data.total_cost_usd as number) ?? next.total_cost_usd;
+            if (ev.event === "genesis_token_usage") next.pricing_known = (ev.data.pricing_known as boolean) ?? next.pricing_known;
             if (ev.event === "genesis_assessment") next.last_assessment = ev.data.scores as GenesisScores;
             if (ev.event === "genesis_file_changed") {
               const path = ev.data.path as string;
@@ -264,15 +373,23 @@ export default function Home() {
     Promise.all([
       fetch(`${API}/api/evolve/status`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/api/arena/status`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/api/bootstrap/status`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/api/bootstrap/artifacts`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/api/genesis/status`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/api/genesis/workspace`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/api/genesis/narrative`).then((r) => r.json()).catch(() => null),
-    ]).then(([classic, arena, genesis, workspace, narrative]) => {
+    ]).then(([classic, arena, bootstrap, bootstrapFiles, genesis, workspace, narrative]) => {
       if (classic?.agent) setAgent(classic.agent);
       if (classic?.status === "running") setRunning(true);
       if (arena?.solver) setSolver(arena.solver);
       if (arena?.protocol) setProtocol(arena.protocol as ProtocolState);
       if (arena?.status === "running") setArenaRunning(true);
+      if (bootstrap && !bootstrap.error && bootstrap.peer_a) {
+        setBootstrapStatus(bootstrap as BootstrapStatus);
+        setBootstrapProtocol((bootstrap.protocol ?? null) as BootstrapProtocolState | null);
+        if (bootstrap.status === "running") setBootstrapRunning(true);
+      }
+      if (bootstrapFiles?.files) setBootstrapArtifacts(bootstrapFiles.files as GenesisFile[]);
       if (genesis && !genesis.error) {
         setGenesisStatus(genesis as GenesisStatus);
         if (genesis.running) setGenesisRunning(true);
@@ -310,6 +427,28 @@ export default function Home() {
     await fetch(`${API}/api/arena/stop`, { method: "POST" });
   };
 
+  const startBootstrap = async () => {
+    setEvents([]);
+    setBootstrapRunning(true);
+    await fetch(`${API}/api/bootstrap/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rounds: bootstrapRounds }),
+    });
+  };
+
+  const stopBootstrap = async () => {
+    await fetch(`${API}/api/bootstrap/stop`, { method: "POST" });
+  };
+
+  const resetBootstrap = async () => {
+    setBootstrapStatus(null);
+    setBootstrapProtocol(null);
+    setBootstrapArtifacts([]);
+    setEvents([]);
+    await fetch(`${API}/api/bootstrap/reset`, { method: "POST" });
+  };
+
   const resetArena = async () => {
     setSolver(null);
     setProtocol(null);
@@ -321,7 +460,7 @@ export default function Home() {
     setEvents([]);
     setGenesisFiles([]);
     setGenesisNarrative(null);
-    setGenesisStatus({ running: true, phase: "RESEARCH", iteration: 0, total_cost_usd: 0, files_created: [], last_assessment: null });
+    setGenesisStatus({ running: true, phase: "RESEARCH", iteration: 0, total_cost_usd: 0, pricing_known: true, files_created: [], last_assessment: null });
     setGenesisRunning(true);
     await fetch(`${API}/api/genesis/start`, {
       method: "POST",
@@ -373,6 +512,14 @@ export default function Home() {
               }`}
             >
               Arena
+            </button>
+            <button
+              onClick={() => setMode("bootstrap")}
+              className={`px-4 py-1.5 rounded text-sm font-bold transition-colors ${
+                mode === "bootstrap" ? "bg-sky-700 text-white" : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              Bootstrap {bootstrapRunning && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />}
             </button>
             <button
               onClick={() => setMode("genesis")}
@@ -602,6 +749,202 @@ export default function Home() {
         </>
       )}
 
+      {/* ── Bootstrap mode ────────────────────────────────────────── */}
+      {mode === "bootstrap" && (
+        <>
+          <div className="grid grid-cols-5 gap-4">
+            {[
+              { label: "Stage", value: bootstrapStatus?.stage ?? "Handshake", color: "text-sky-300" },
+              { label: "Round", value: bootstrapStatus?.round ?? 0, color: "text-white" },
+              { label: "Stable Tokens", value: bootstrapProtocol?.stable_tokens ?? 0, color: "text-emerald-300" },
+              { label: "Run Cost", value: `$${(bootstrapStatus?.run_cost_usd ?? 0).toFixed(4)}`, color: "text-white" },
+              { label: "Status", value: bootstrapRunning ? "BOOTSTRAPPING" : "IDLE", color: bootstrapRunning ? "text-sky-300" : "text-slate-400" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">{label}</p>
+                <p className={`text-xl font-bold ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+            <div>
+              <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Current Objective</p>
+              <p className="text-slate-200 text-sm">{bootstrapStatus?.objective ?? "Waiting for bootstrap objective..."}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Unlocked Capabilities</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(bootstrapStatus?.unlocked_capabilities ?? []).map((cap) => (
+                  <span
+                    key={cap}
+                    className="px-2 py-0.5 rounded border border-sky-800 bg-sky-950 text-sky-300 text-xs font-bold"
+                  >
+                    {cap}
+                  </span>
+                ))}
+                {(bootstrapStatus?.unlocked_capabilities ?? []).length === 0 && (
+                  <span className="text-slate-600 text-xs">No capabilities unlocked yet.</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {[bootstrapStatus?.peer_a, bootstrapStatus?.peer_b].map((peer) => (
+              <div key={peer?.name ?? "peer"} className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-white font-bold">{peer?.name ?? "Peer"}</p>
+                  <span className="text-slate-500 text-xs">gen {peer?.generation ?? 0}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Messages</p>
+                    <p className="text-white font-bold">{peer?.message_count ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Contribution</p>
+                    <p className="text-sky-300 font-bold">{peer?.contribution_score?.toFixed(2) ?? "0.00"}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Dependency</p>
+                    <p className="text-emerald-300 font-bold">{peer?.dependency_score?.toFixed(2) ?? "0.00"}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Accepted</p>
+                    <p className="text-white font-bold">{peer?.accepted_proposals ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Rejected</p>
+                    <p className="text-white font-bold">{peer?.rejected_proposals ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Cost</p>
+                    <p className="text-white font-bold">${(peer?.total_cost_usd ?? 0).toFixed(4)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <p className="text-slate-500 text-xs uppercase tracking-widest">Operating Language</p>
+                <span className="text-slate-600 text-xs">
+                  {bootstrapProtocol?.vocab_size ?? 0} tokens · {Math.round((bootstrapProtocol?.utilization_rate ?? 0) * 100)}% used
+                </span>
+              </div>
+              {bootstrapProtocol?.vocabulary?.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {bootstrapProtocol.vocabulary.map((entry) => (
+                    <div
+                      key={entry.token}
+                      title={`${entry.meaning} · ${entry.state} · proposed by ${entry.proposed_by}${entry.accepted_by ? ` · accepted by ${entry.accepted_by}` : ""}`}
+                      className={`px-2 py-1 rounded text-xs font-bold border ${
+                        entry.state === "stable"
+                          ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                          : entry.state === "adopted"
+                          ? "bg-sky-950 text-sky-300 border-sky-800"
+                          : "bg-slate-800 text-slate-300 border-slate-700"
+                      }`}
+                    >
+                      {entry.token}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-600 text-xs">No protocol tokens yet.</p>
+              )}
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <p className="text-slate-500 text-xs uppercase tracking-widest">Artifacts</p>
+                <span className="text-slate-600 text-xs">{bootstrapArtifacts.length} files</span>
+              </div>
+              {bootstrapArtifacts.length ? (
+                bootstrapArtifacts.map((file) => (
+                  <div key={file.path} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-mono truncate">{file.path}</span>
+                    <span className="text-slate-600 shrink-0 ml-2">{file.size_bytes}B</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-600 text-xs">No artifacts yet.</p>
+              )}
+            </div>
+          </div>
+
+          {bootstrapStatus?.assessment && (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+              <p className="text-slate-500 text-xs uppercase tracking-widest">Assessment</p>
+              <div className="grid grid-cols-5 gap-3">
+                {(["overall", "collaboration", "language", "traceability", "autonomy"] as const).map((key) => {
+                  const score = bootstrapStatus.assessment?.[key] ?? 0;
+                  const color = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-teal-500" : score >= 40 ? "bg-yellow-500" : "bg-slate-600";
+                  return (
+                    <div key={key}>
+                      <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">{key}</p>
+                      <p className={`text-2xl font-bold ${score >= 80 ? "text-emerald-400" : score >= 60 ? "text-teal-400" : score >= 40 ? "text-yellow-400" : "text-slate-500"}`}>
+                        {score}
+                      </p>
+                      <div className="flex gap-0.5 mt-1">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div key={i} className={`h-1 flex-1 rounded-full ${i < Math.round(score / 10) ? color : "bg-slate-800"}`} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-4">
+            <label className="text-slate-400 text-sm">
+              Rounds:
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={bootstrapRounds}
+                onChange={(e) => setBootstrapRounds(Number(e.target.value))}
+                className="ml-2 w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-sm"
+              />
+            </label>
+            <button
+              onClick={startBootstrap}
+              disabled={bootstrapRunning || !connected}
+              className="px-6 py-2 rounded bg-sky-700 hover:bg-sky-600 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold transition-colors"
+            >
+              {bootstrapRunning ? "BOOTSTRAPPING..." : "START BOOTSTRAP"}
+            </button>
+            {bootstrapRunning && (
+              <button
+                onClick={stopBootstrap}
+                className="px-4 py-2 rounded border border-red-700 hover:border-red-500 text-red-400 text-sm transition-colors"
+              >
+                Stop
+              </button>
+            )}
+            <button
+              onClick={resetBootstrap}
+              disabled={bootstrapRunning}
+              className="px-4 py-2 rounded border border-slate-700 hover:border-slate-500 disabled:opacity-40 text-slate-400 text-sm transition-colors"
+            >
+              Reset Bootstrap
+            </button>
+            <button
+              onClick={() => setEvents([])}
+              className="px-4 py-2 rounded border border-slate-700 hover:border-slate-500 text-slate-400 text-sm transition-colors"
+            >
+              Clear Feed
+            </button>
+          </div>
+        </>
+      )}
+
       {/* ── Genesis mode ──────────────────────────────────────────── */}
       {mode === "genesis" && (
         <>
@@ -620,8 +963,8 @@ export default function Home() {
               },
               {
                 label: "Cost",
-                value: `$${(genesisStatus?.total_cost_usd ?? 0).toFixed(3)}`,
-                color: (genesisStatus?.total_cost_usd ?? 0) > 80 ? "text-red-400" : (genesisStatus?.total_cost_usd ?? 0) > 50 ? "text-yellow-400" : "text-white",
+                value: genesisStatus?.pricing_known === false ? "N/A" : `$${(genesisStatus?.total_cost_usd ?? 0).toFixed(3)}`,
+                color: genesisStatus?.pricing_known === false ? "text-slate-500" : (genesisStatus?.total_cost_usd ?? 0) > 80 ? "text-red-400" : (genesisStatus?.total_cost_usd ?? 0) > 50 ? "text-yellow-400" : "text-white",
               },
               {
                 label: "Files",
@@ -804,7 +1147,29 @@ export default function Home() {
                 : ev.event === "genesis_phase_change"
                 ? `${ev.data.old_phase} → ${ev.data.new_phase}`
                 : ev.event === "genesis_token_usage"
-                ? `$${(ev.data.total_cost_usd as number).toFixed(4)} | in=${ev.data.prompt_tokens} out=${ev.data.completion_tokens}`
+                ? `$${(ev.data.total_cost_usd as number).toFixed(4)} | in=${ev.data.prompt_tokens} cached=${ev.data.cached_prompt_tokens ?? 0} out=${ev.data.completion_tokens}${ev.data.pricing_known === false ? " | pricing unavailable" : ""}`
+                : ev.event === "bootstrap_peer_message"
+                ? `${ev.data.peer} (${ev.data.role}): ${String(ev.data.message).slice(0, 120)}`
+                : ev.event === "bootstrap_resumed"
+                ? `resumed at round ${ev.data.resume_round} from checkpoint`
+                : ev.event === "bootstrap_protocol_proposed"
+                ? `${ev.data.peer} proposed ${ev.data.token} = ${String(ev.data.meaning).slice(0, 80)}`
+                : ev.event === "bootstrap_protocol_adopted"
+                ? `${ev.data.peer} adopted ${ev.data.token}`
+                : ev.event === "bootstrap_tool_requested"
+                ? `${ev.data.peer} requested ${ev.data.capability} (${ev.data.review_decision})`
+                : ev.event === "bootstrap_tool_executed"
+                ? `${ev.data.peer} executed ${ev.data.capability} ${ev.data.success ? "✓" : "✗"} — ${String(ev.data.output_preview).slice(0, 60)}`
+                : ev.event === "bootstrap_tool_rejected"
+                ? `${ev.data.peer} ${ev.data.capability} rejected — ${String(ev.data.reason).slice(0, 80)}`
+                : ev.event === "bootstrap_artifact_changed"
+                ? `${ev.data.peer} changed ${ev.data.path}`
+                : ev.event === "bootstrap_stage_up"
+                ? `stage -> ${ev.data.stage}`
+                : ev.event === "bootstrap_injection"
+                ? String(ev.data.injection).slice(0, 120)
+                : ev.event === "bootstrap_assessment"
+                ? `${ev.data.source}: ${JSON.stringify(ev.data.assessment).slice(0, 100)}`
                 : JSON.stringify(ev.data)}
             </span>
           </div>

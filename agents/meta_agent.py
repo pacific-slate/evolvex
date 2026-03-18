@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from openai import AsyncOpenAI
+from evolution.openai_pricing import calculate_usage_cost, usage_counts
 
 SYSTEM_PROMPT = """\
 You are Genesis — an autonomous AI architect. Your mission: build the most capable AI \
@@ -62,20 +63,23 @@ class MetaAgent:
         self.tools = tools
         self.history: list[dict[str, Any]] = []
         self.total_prompt_tokens = 0
+        self.total_cached_prompt_tokens = 0
         self.total_completion_tokens = 0
+        self._known_cost_usd = 0.0
+        self._has_pricing = True
 
     @property
     def total_cost_usd(self) -> float:
-        # GPT-5.4 pricing approximation: $10/M input, $30/M output
-        return (self.total_prompt_tokens / 1_000_000 * 10.0) + \
-               (self.total_completion_tokens / 1_000_000 * 30.0)
+        return self._known_cost_usd
 
     @property
     def token_usage(self) -> dict:
         return {
             "prompt_tokens": self.total_prompt_tokens,
+            "cached_prompt_tokens": self.total_cached_prompt_tokens,
             "completion_tokens": self.total_completion_tokens,
             "total_cost_usd": round(self.total_cost_usd, 4),
+            "pricing_known": self._has_pricing,
         }
 
     def _compact_history(self) -> str | None:
@@ -153,8 +157,15 @@ class MetaAgent:
 
         # Track token usage
         if response.usage:
-            self.total_prompt_tokens += response.usage.prompt_tokens
-            self.total_completion_tokens += response.usage.completion_tokens
+            counts = usage_counts(response.usage)
+            self.total_prompt_tokens += counts["prompt_tokens"]
+            self.total_cached_prompt_tokens += counts["cached_prompt_tokens"]
+            self.total_completion_tokens += counts["completion_tokens"]
+            cost = calculate_usage_cost(self.model, response.usage)
+            if cost is None:
+                self._has_pricing = False
+            else:
+                self._known_cost_usd += cost
 
         # Append assistant turn to history
         assistant_entry: dict[str, Any] = {"role": "assistant"}
@@ -195,7 +206,10 @@ class MetaAgent:
         data = {
             "history": self.history,
             "total_prompt_tokens": self.total_prompt_tokens,
+            "total_cached_prompt_tokens": self.total_cached_prompt_tokens,
             "total_completion_tokens": self.total_completion_tokens,
+            "known_cost_usd": self._known_cost_usd,
+            "has_pricing": self._has_pricing,
         }
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -213,7 +227,15 @@ class MetaAgent:
                 data = json.load(f)
             self.history = data.get("history", [])
             self.total_prompt_tokens = data.get("total_prompt_tokens", 0)
+            self.total_cached_prompt_tokens = data.get("total_cached_prompt_tokens", 0)
             self.total_completion_tokens = data.get("total_completion_tokens", 0)
+            has_known_cost = "known_cost_usd" in data
+            has_cached_tokens = "total_cached_prompt_tokens" in data
+            self._known_cost_usd = float(data.get("known_cost_usd", 0.0))
+            self._has_pricing = bool(data.get("has_pricing", True))
+            if not has_known_cost or (self.total_prompt_tokens > 0 and not has_cached_tokens):
+                self._has_pricing = False
+                self._known_cost_usd = 0.0
             return len(self.history)
         except (FileNotFoundError, json.JSONDecodeError):
             return 0

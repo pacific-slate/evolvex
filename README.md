@@ -1,20 +1,33 @@
 # EvolveX
 
-Self-modifying agent evolution system. Agents benchmark their own performance, propose code mutations, validate in an isolated sandbox, and apply improvements that pass — with automatic rollback on failure.
+Agent evolution sandbox with four independent modes:
+- Classic: self-modifying benchmark loop
+- Arena: adversarial solver vs challenger co-evolution
+- Bootstrap: two-peer recursive autonomy + emergent operating language
+- Genesis: autonomous single-agent builder
 
 Built for the EvolveX Hackathon using OpenAI API.
 
 ## Architecture
 
 ```
+Classic mode:
 Performer (Agent A) → runs benchmark tasks
 Analyzer  (Agent B) → identifies improvement opportunities via LLM
 Modifier  (Agent C) → generates code mutations via LLM
 Sandbox              → validates mutations before applying (exec-isolated)
 Checkpoint           → save/restore state for rollback
 Loop                 → orchestrates one full evolution cycle
-API (FastAPI)        → WebSocket broadcast + REST control
-Dashboard (Next.js)  → real-time evolution visualization
+
+Bootstrap mode:
+Peer A + Peer B      → symmetric agents with minimal priors
+Broker               → stage-gated tool execution and audit trail
+Protocol             → invented operating language with adoption/stability metrics
+Curriculum           → progressively unlocks capabilities and harder objectives
+
+Shared platform:
+API (FastAPI)        → WebSocket broadcast + REST control across all modes
+Dashboard (Next.js)  → real-time visualization
 ```
 
 ## Quick Start
@@ -50,3 +63,11 @@ cd dashboard && npm install && npm run dev
 6. **Apply/Rollback** — If fitness improves: apply. If not: discard or rollback.
 
 All events stream in real-time to the dashboard via WebSocket.
+
+## Bootstrap Mode
+
+Bootstrap mode is the proof-of-concept for maximal agency:
+- Two peer agents start with minimal information and brokered capabilities only
+- They must coordinate through messages, critique, and a shared invented language
+- Tool access unlocks by stage: scratchpad → files → repo read → execution/testing → shell → web → packages
+- Every protocol token, broker action, and artifact mutation is logged in the bootstrap workspace
