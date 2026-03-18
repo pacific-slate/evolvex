@@ -32,7 +32,13 @@ fi
 
 git pull --ff-only origin "\$BRANCH"
 
+if [ ! -x .venv/bin/python ]; then
+  PYTHON_BIN=\$(command -v python3.13 || command -v python3)
+  "\$PYTHON_BIN" -m venv .venv
+fi
+
 source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m pytest tests/ -q
 
 pids=\$(lsof -tiTCP:"\$PORT" -sTCP:LISTEN || true)
