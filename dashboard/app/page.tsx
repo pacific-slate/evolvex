@@ -230,6 +230,12 @@ function compressionColor(ratio: number): string {
   return "text-slate-400";
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export default function Home() {
   const [mode, setMode] = useState<"classic" | "arena" | "bootstrap" | "genesis">("classic");
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
@@ -485,18 +491,21 @@ export default function Home() {
     protocol?.round_history?.length
       ? protocol.round_history[protocol.round_history.length - 1].compression_ratio
       : null;
+  const bootstrapPeers = [bootstrapStatus?.peer_a, bootstrapStatus?.peer_b].filter(
+    (peer): peer is BootstrapPeerState => Boolean(peer?.name),
+  );
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 font-mono p-6 flex flex-col gap-6">
+    <main className="min-h-screen bg-slate-950 text-slate-100 font-mono p-4 sm:p-6 flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">EvolveX</h1>
           <p className="text-slate-500 text-sm">Self-Modifying Agent Evolution System</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
           {/* Mode toggle */}
-          <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
+          <div className="flex flex-wrap gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
             <button
               onClick={() => setMode("classic")}
               className={`px-4 py-1.5 rounded text-sm font-bold transition-colors ${
@@ -752,7 +761,7 @@ export default function Home() {
       {/* ── Bootstrap mode ────────────────────────────────────────── */}
       {mode === "bootstrap" && (
         <>
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
             {[
               { label: "Stage", value: bootstrapStatus?.stage ?? "Handshake", color: "text-sky-300" },
               { label: "Round", value: bootstrapStatus?.round ?? 0, color: "text-white" },
@@ -760,9 +769,9 @@ export default function Home() {
               { label: "Run Cost", value: `$${(bootstrapStatus?.run_cost_usd ?? 0).toFixed(4)}`, color: "text-white" },
               { label: "Status", value: bootstrapRunning ? "BOOTSTRAPPING" : "IDLE", color: bootstrapRunning ? "text-sky-300" : "text-slate-400" },
             ].map(({ label, value, color }) => (
-              <div key={label} className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+              <div key={label} className="bg-slate-900 border border-slate-800 rounded-lg p-4 min-w-0">
                 <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">{label}</p>
-                <p className={`text-xl font-bold ${color}`}>{value}</p>
+                <p className={`text-lg sm:text-xl font-bold ${color} break-words`}>{value}</p>
               </div>
             ))}
           </div>
@@ -770,7 +779,7 @@ export default function Home() {
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
             <div>
               <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Current Objective</p>
-              <p className="text-slate-200 text-sm">{bootstrapStatus?.objective ?? "Waiting for bootstrap objective..."}</p>
+              <p className="text-slate-200 text-sm leading-6">{bootstrapStatus?.objective ?? "Waiting for bootstrap objective..."}</p>
             </div>
             <div>
               <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Unlocked Capabilities</p>
@@ -790,45 +799,45 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {[bootstrapStatus?.peer_a, bootstrapStatus?.peer_b].map((peer) => (
-              <div key={peer?.name ?? "peer"} className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {bootstrapPeers.map((peer) => (
+              <div key={peer.name} className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3 min-w-0">
                 <div className="flex items-center justify-between">
-                  <p className="text-white font-bold">{peer?.name ?? "Peer"}</p>
-                  <span className="text-slate-500 text-xs">gen {peer?.generation ?? 0}</span>
+                  <p className="text-white font-bold">{peer.name}</p>
+                  <span className="text-slate-500 text-xs">gen {peer.generation}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
                   <div>
                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Messages</p>
-                    <p className="text-white font-bold">{peer?.message_count ?? 0}</p>
+                    <p className="text-white font-bold">{peer.message_count}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Contribution</p>
-                    <p className="text-sky-300 font-bold">{peer?.contribution_score?.toFixed(2) ?? "0.00"}</p>
+                    <p className="text-sky-300 font-bold">{peer.contribution_score.toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Dependency</p>
-                    <p className="text-emerald-300 font-bold">{peer?.dependency_score?.toFixed(2) ?? "0.00"}</p>
+                    <p className="text-emerald-300 font-bold">{peer.dependency_score.toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Accepted</p>
-                    <p className="text-white font-bold">{peer?.accepted_proposals ?? 0}</p>
+                    <p className="text-white font-bold">{peer.accepted_proposals}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Rejected</p>
-                    <p className="text-white font-bold">{peer?.rejected_proposals ?? 0}</p>
+                    <p className="text-white font-bold">{peer.rejected_proposals}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Cost</p>
-                    <p className="text-white font-bold">${(peer?.total_cost_usd ?? 0).toFixed(4)}</p>
+                    <p className="text-white font-bold">${peer.total_cost_usd.toFixed(4)}</p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3 min-h-56">
               <div className="flex items-center justify-between">
                 <p className="text-slate-500 text-xs uppercase tracking-widest">Operating Language</p>
                 <span className="text-slate-600 text-xs">
@@ -836,20 +845,36 @@ export default function Home() {
                 </span>
               </div>
               {bootstrapProtocol?.vocabulary?.length ? (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid gap-2 sm:grid-cols-2">
                   {bootstrapProtocol.vocabulary.map((entry) => (
                     <div
                       key={entry.token}
                       title={`${entry.meaning} · ${entry.state} · proposed by ${entry.proposed_by}${entry.accepted_by ? ` · accepted by ${entry.accepted_by}` : ""}`}
-                      className={`px-2 py-1 rounded text-xs font-bold border ${
+                      className={`rounded border p-2 ${
                         entry.state === "stable"
-                          ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                          ? "bg-emerald-950/60 border-emerald-800"
                           : entry.state === "adopted"
-                          ? "bg-sky-950 text-sky-300 border-sky-800"
-                          : "bg-slate-800 text-slate-300 border-slate-700"
+                          ? "bg-sky-950/60 border-sky-800"
+                          : "bg-slate-800/80 border-slate-700"
                       }`}
                     >
-                      {entry.token}
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`text-xs font-bold ${
+                          entry.state === "stable"
+                            ? "text-emerald-300"
+                            : entry.state === "adopted"
+                            ? "text-sky-300"
+                            : "text-slate-200"
+                        }`}>
+                          {entry.token}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-widest text-slate-500">{entry.state}</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{entry.meaning}</p>
+                      <p className="mt-2 text-[10px] uppercase tracking-widest text-slate-600">
+                        {entry.proposed_by}
+                        {entry.accepted_by ? ` -> ${entry.accepted_by}` : ""}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -858,18 +883,20 @@ export default function Home() {
               )}
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2 min-h-56">
               <div className="flex items-center justify-between">
                 <p className="text-slate-500 text-xs uppercase tracking-widest">Artifacts</p>
                 <span className="text-slate-600 text-xs">{bootstrapArtifacts.length} files</span>
               </div>
               {bootstrapArtifacts.length ? (
-                bootstrapArtifacts.map((file) => (
-                  <div key={file.path} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300 font-mono truncate">{file.path}</span>
-                    <span className="text-slate-600 shrink-0 ml-2">{file.size_bytes}B</span>
-                  </div>
-                ))
+                <div className="space-y-2">
+                  {bootstrapArtifacts.map((file) => (
+                    <div key={file.path} className="flex items-start justify-between gap-3 rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs">
+                      <span className="min-w-0 break-all text-slate-300 font-mono leading-5">{file.path}</span>
+                      <span className="shrink-0 text-slate-500 tabular-nums">{formatBytes(file.size_bytes)}</span>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <p className="text-slate-600 text-xs">No artifacts yet.</p>
               )}
@@ -879,7 +906,7 @@ export default function Home() {
           {bootstrapStatus?.assessment && (
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
               <p className="text-slate-500 text-xs uppercase tracking-widest">Assessment</p>
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
                 {(["overall", "collaboration", "language", "traceability", "autonomy"] as const).map((key) => {
                   const score = bootstrapStatus.assessment?.[key] ?? 0;
                   const color = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-teal-500" : score >= 40 ? "bg-yellow-500" : "bg-slate-600";
@@ -901,7 +928,7 @@ export default function Home() {
             </div>
           )}
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="text-slate-400 text-sm">
               Rounds:
               <input
@@ -1113,20 +1140,20 @@ export default function Home() {
       {/* ── Event feed (shared) ───────────────────────────────────── */}
       <div
         ref={feedRef}
-        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg p-4 overflow-y-auto max-h-[calc(100vh-360px)] space-y-1"
+        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg p-4 overflow-y-auto max-h-[calc(100vh-320px)] space-y-2"
       >
         {events.length === 0 && (
           <p className="text-slate-600 text-sm">Waiting for evolution events...</p>
         )}
         {events.map((ev, i) => (
-          <div key={i} className="flex gap-3 text-sm leading-relaxed">
-            <span className="text-slate-600 shrink-0 text-xs pt-0.5">
+          <div key={i} className="grid grid-cols-[72px_136px_minmax(0,1fr)] gap-3 text-[11px] leading-5 sm:grid-cols-[84px_160px_minmax(0,1fr)] sm:text-xs">
+            <span className="text-slate-600 shrink-0 pt-0.5">
               {new Date(ev.ts).toLocaleTimeString()}
             </span>
-            <span className={`shrink-0 w-40 ${EVENT_COLORS[ev.event] ?? "text-slate-300"}`}>
+            <span className={`${EVENT_COLORS[ev.event] ?? "text-slate-300"} break-words`}>
               {ev.event}
             </span>
-            <span className="text-slate-300 break-all text-xs">
+            <span className="text-slate-300 break-words">
               {ev.event === "arena_challenge"
                 ? String(ev.data.description).slice(0, 120) +
                   (String(ev.data.description).length > 120 ? "…" : "")
