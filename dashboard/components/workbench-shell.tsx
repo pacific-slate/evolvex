@@ -42,7 +42,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className={`lab-panel ${className}`}>
+    <section className={`lab-panel min-w-0 ${className}`}>
       {(kicker || title || actions) && (
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
@@ -67,7 +67,7 @@ export function MetricCard({
   helper?: string;
 }) {
   return (
-    <div className="metric-card">
+    <div className="metric-card min-w-0">
       <p className="section-eyebrow">{label}</p>
       <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{value}</p>
       {helper ? <p className="mt-2 text-sm leading-6 text-white/55">{helper}</p> : null}
@@ -113,7 +113,7 @@ export function WorkbenchShell({
       <div className="ambient-glow" aria-hidden="true" />
       <div className="ambient-grid" aria-hidden="true" />
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 py-6 sm:px-6 xl:px-8 2xl:px-10">
         <Panel className="relative overflow-hidden">
           <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
             <div className="space-y-5">
@@ -134,7 +134,7 @@ export function WorkbenchShell({
                   {headerBody}
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+              <div className="auto-grid-standard">
                 {overview.metrics.map((metric) => (
                   <MetricCard key={metric.label} label={metric.label} value={metric.value} helper={metric.helper} />
                 ))}
@@ -181,7 +181,7 @@ export function WorkbenchShell({
           ) : null}
         </Panel>
 
-        <div className="grid gap-6 2xl:grid-cols-[16rem_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[15rem_minmax(0,1fr)] 2xl:grid-cols-[16rem_minmax(0,1fr)] xl:items-start">
           <aside className="space-y-4">
             <Panel kicker="Experiment Rail" title="Modes">
               <div className="space-y-3">

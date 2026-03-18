@@ -88,7 +88,7 @@ function PrimaryButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-12 items-center justify-center rounded-full px-5 text-sm font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`inline-flex h-12 w-full items-center justify-center rounded-full px-5 text-center text-sm font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto ${className}`}
     >
       {children}
     </button>
@@ -110,7 +110,7 @@ function SecondaryButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.03] px-5 text-sm uppercase tracking-[0.14em] text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`inline-flex h-12 w-full items-center justify-center rounded-full border border-white/12 bg-white/[0.03] px-5 text-center text-sm uppercase tracking-[0.14em] text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto ${className}`}
     >
       {children}
     </button>
@@ -190,7 +190,7 @@ function ClassicSection({ dashboard }: { dashboard: EvolvexDashboardController }
     <>
       <ModeBrief dashboard={dashboard} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel kicker="Run Controls" title="Classic mutation run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Cycles" value={cycles} min={1} max={20} onChange={dashboard.controls.setCycles} />
@@ -222,7 +222,7 @@ function ClassicSection({ dashboard }: { dashboard: EvolvexDashboardController }
       </div>
 
       <Panel kicker="Live Metrics" title="Mutation evidence at a glance">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="auto-grid-compact">
           <ScoreBar label="Generation" value={agent?.generation ?? 0} />
           <ScoreBar label="Fitness" value={Math.round((agent?.fitness_score ?? 0) * 100)} />
           <ScoreBar label="Mutations" value={Math.min((agent?.mutation_count ?? 0) * 10, 100)} />
@@ -255,7 +255,7 @@ function ArenaSection({ dashboard }: { dashboard: EvolvexDashboardController }) 
     <>
       <ModeBrief dashboard={dashboard} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel kicker="Run Controls" title="Arena challenge run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Rounds" value={arenaRounds} min={1} max={50} onChange={dashboard.controls.setArenaRounds} />
@@ -310,7 +310,7 @@ function ArenaSection({ dashboard }: { dashboard: EvolvexDashboardController }) 
       </div>
 
       <Panel kicker="Arena Telemetry" title="Performance, progression, and compression">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="auto-grid-compact">
           <ScoreBar label="Wins" value={(solver?.total_wins ?? 0) * 10} />
           <ScoreBar label="Losses" value={(solver?.total_losses ?? 0) * 10} />
           <ScoreBar label="Generation" value={(solver?.generation ?? 0) * 10} />
@@ -331,7 +331,7 @@ function ArenaSection({ dashboard }: { dashboard: EvolvexDashboardController }) 
         </div>
       </Panel>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
         <Panel kicker="Emergent Protocol" title="Vocabulary and utilization">
           {protocol?.vocabulary.length ? (
             <div className="flex flex-wrap gap-2">
@@ -405,7 +405,7 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
               style={{ width: `${bootstrapProgress}%` }}
             />
           </div>
-          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+          <div className="auto-grid-compact">
             {BOOTSTRAP_STAGE_LABELS.map((stage) => {
               const state =
                 stage.id < (bootstrapStatus?.stage_id ?? 0)
@@ -584,7 +584,7 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
 
       {bootstrapStatus?.assessment ? (
         <Panel kicker="Assessment" title="How well the peer system is coordinating">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="auto-grid-compact">
             <ScoreBar label="Overall" value={bootstrapStatus.assessment.overall} />
             <ScoreBar label="Collaboration" value={bootstrapStatus.assessment.collaboration} />
             <ScoreBar label="Language" value={bootstrapStatus.assessment.language} />
@@ -628,7 +628,7 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
         </Panel>
 
         <Panel kicker="Builder Telemetry" title="Current phase, cost, and output surface">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="auto-grid-compact">
             <ScoreBar label="Phase" value={genesisStatus?.phase === "COMPLETE" ? 100 : genesisStatus ? 65 : 0} />
             <ScoreBar label="Iteration" value={Math.min((genesisStatus?.iteration ?? 0) * 10, 100)} />
             <ScoreBar label="Files" value={Math.min(genesisFiles.length * 18, 100)} />
@@ -645,7 +645,7 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
 
       {genesisStatus?.last_assessment ? (
         <Panel kicker="Capability Assessment" title="How the builder rated its own performance">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="auto-grid-compact">
             <ScoreBar label="Overall" value={genesisStatus.last_assessment.overall} />
             <ScoreBar label="Reasoning" value={genesisStatus.last_assessment.reasoning} />
             <ScoreBar label="Tool Use" value={genesisStatus.last_assessment.tool_use} />
