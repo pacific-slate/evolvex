@@ -71,3 +71,23 @@ Bootstrap mode is the proof-of-concept for maximal agency:
 - They must coordinate through messages, critique, and a shared invented language
 - Tool access unlocks by stage: scratchpad → files → repo read → execution/testing → shell → web → packages
 - Every protocol token, broker action, and artifact mutation is logged in the bootstrap workspace
+
+## Split Deployment
+
+Frontend and backend can be deployed independently.
+
+- Frontend-only deploy updates the dashboard checkout and restarts only the Next server on port `3002`
+- Backend-only deploy updates the agent/API checkout and restarts only FastAPI on port `8000`
+- Frontend deploys should not interrupt active Bootstrap, Genesis, Arena, or Classic runs
+
+Commands:
+
+```bash
+./scripts/deploy_frontend.sh
+./scripts/deploy_backend.sh
+```
+
+Default remote layout:
+
+- frontend checkout: `/opt/evolvex-frontend`
+- backend checkout: `/opt/evolvex`
