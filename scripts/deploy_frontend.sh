@@ -33,7 +33,10 @@ pkill -f "nohup npm start -- -p \$PORT" 2>/dev/null || true
 pkill -f "npm start -p \$PORT" 2>/dev/null || true
 pkill -f "next start -p \$PORT" 2>/dev/null || true
 
-pids=\$(lsof -tiTCP:"\$PORT" -sTCP:LISTEN || true)
+pids=\$(ss -ltnp 2>/dev/null | sed -n "s/.*:\$PORT .*pid=\\([0-9]\\+\\).*/\\1/p" | sort -u)
+if [ -z "\$pids" ] && command -v lsof >/dev/null 2>&1; then
+  pids=\$(lsof -tiTCP:"\$PORT" -sTCP:LISTEN || true)
+fi
 if [ -n "\$pids" ]; then
   kill -9 \$pids
   sleep 2
