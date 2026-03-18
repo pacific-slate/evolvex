@@ -16,7 +16,6 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
     () => (scope === "current" ? dashboard.derived.currentTrace : dashboard.derived.allTrace),
     [dashboard.derived.allTrace, dashboard.derived.currentTrace, scope],
   );
-  const dockTitle = scope === "current" && dashboard.mode === "bootstrap" ? "Bootstrap evidence dock" : "The workbench narrative";
 
   useEffect(() => {
     if (!scrollerRef.current) return;
@@ -28,8 +27,9 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
 
   return (
     <Panel
+      className="h-full"
       kicker="Live Trace Dock"
-      title={dockTitle}
+      title="Event log"
       actions={
         <div className="flex flex-wrap gap-2">
           <button
@@ -64,15 +64,12 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
         <span className="signal-pill border-white/10 bg-white/5 text-white/65">{trace.length} entries</span>
       </div>
 
-      <div ref={scrollerRef} className="trace-shell min-w-0 max-h-[32rem] overflow-auto rounded-[28px] border border-white/8 bg-black/20 p-4">
+      <div ref={scrollerRef} className="trace-shell min-h-0 flex-1 overflow-auto rounded-[1.25rem] border border-white/8 bg-black/20 p-3">
         {trace.length === 0 ? (
-          <div className="grid min-h-72 place-items-center rounded-[24px] border border-dashed border-white/10 bg-white/[0.025] p-8">
+          <div className="grid h-full min-h-[5rem] place-items-center rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-4">
             <div className="max-w-2xl text-center">
               <SectionEyebrow>Ready To Observe</SectionEyebrow>
-              <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white">Start any experiment to turn the dock into a narrated evidence stream.</h3>
-              <p className="mt-4 text-sm leading-7 text-white/60">
-                The dock translates backend payloads into operator-readable signals instead of forcing you to parse raw JSON.
-              </p>
+              <h3 className="mt-2 text-lg font-semibold tracking-tight text-white">Start a mode to populate the event log.</h3>
             </div>
           </div>
         ) : (

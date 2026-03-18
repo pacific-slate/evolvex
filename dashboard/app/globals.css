@@ -21,6 +21,7 @@
 }
 
 html {
+  height: 100%;
   min-height: 100%;
   background:
     radial-gradient(circle at top left, rgba(14, 165, 233, 0.11), transparent 30%),
@@ -29,10 +30,12 @@ html {
 }
 
 body {
+  height: 100%;
   min-height: 100vh;
   color: var(--foreground);
   font-family: var(--font-sans);
   background: transparent;
+  overflow: hidden;
 }
 
 a {
@@ -47,8 +50,45 @@ a {
 
 .workbench-shell {
   position: relative;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   isolation: isolate;
+}
+
+.workbench-frame {
+  display: flex;
+  height: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 1rem;
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.operator-strip {
+  flex-shrink: 0;
+}
+
+.workspace-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 14rem minmax(0, 1fr) 18rem;
+}
+
+.workspace-rail,
+.workspace-canvas,
+.workspace-inspector,
+.workspace-dock,
+.mode-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workspace-dock {
+  height: 10rem;
 }
 
 .ambient-glow,
@@ -81,14 +121,14 @@ a {
 .lab-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.875rem;
   min-width: 0;
-  border-radius: 2rem;
+  border-radius: 1.5rem;
   border: 1px solid var(--panel-border);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 24%),
     var(--panel-bg);
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: var(--panel-shadow);
   backdrop-filter: blur(20px);
 }
@@ -102,18 +142,18 @@ a {
 }
 
 .metric-card {
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 28%),
     rgba(255, 255, 255, 0.035);
-  padding: 1.125rem;
+  padding: 0.9rem;
 }
 
 .mode-rail-card {
-  border-radius: 1.75rem;
+  border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 1rem 1rem 1.1rem;
+  padding: 0.85rem;
 }
 
 .trace-shell {
@@ -121,12 +161,12 @@ a {
 }
 
 .trace-row {
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 40%),
     rgba(255, 255, 255, 0.025);
-  padding: 1rem;
+  padding: 0.85rem;
 }
 
 .auto-grid-compact,
@@ -157,8 +197,8 @@ a {
   gap: 0.35rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.45rem 0.8rem;
-  font-size: 0.68rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.64rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -182,9 +222,48 @@ a {
   }
 }
 
+@media (max-width: 1279px) {
+  body {
+    overflow: auto;
+  }
+
+  .workbench-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .workbench-frame {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .workspace-body {
+    grid-template-columns: 13rem minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 15rem);
+  }
+
+  .workspace-inspector {
+    grid-column: 2;
+  }
+
+  .workspace-dock {
+    height: 9rem;
+  }
+}
+
 @media (max-width: 1023px) {
   .signal-pill,
   .section-eyebrow {
     letter-spacing: 0.14em;
+  }
+
+  .workspace-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .workspace-dock {
+    height: auto;
   }
 }
