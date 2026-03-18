@@ -41,6 +41,25 @@ type ProtocolState = {
   round_history: { round: number; compression_ratio: number; vocab_size: number }[];
 };
 
+type GenesisScores = {
+  reasoning: number;
+  tool_use: number;
+  error_handling: number;
+  self_improvement: number;
+  overall: number;
+};
+
+type GenesisFile = { path: string; size_bytes: number };
+
+type GenesisStatus = {
+  running: boolean;
+  phase: string;
+  iteration: number;
+  total_cost_usd: number;
+  files_created: string[];
+  last_assessment: GenesisScores | null;
+};
+
 const IS_REMOTE = typeof window !== "undefined" && window.location.hostname !== "localhost";
 const API = IS_REMOTE ? "https://evolvex-api.pacslate.com" : "http://localhost:8000";
 const WS_URL = IS_REMOTE ? "wss://evolvex-api.pacslate.com/ws/evolution" : "ws://localhost:8000/ws/evolution";
@@ -61,6 +80,20 @@ const EVENT_COLORS: Record<string, string> = {
   rollback: "text-orange-400",
   complete: "text-green-300",
   error: "text-red-500",
+  // Genesis mode
+  genesis_started: "text-orange-400",
+  genesis_thinking: "text-amber-300",
+  genesis_tool_call: "text-cyan-400",
+  genesis_tool_result: "text-teal-400",
+  genesis_file_changed: "text-blue-400",
+  genesis_assessment: "text-emerald-400",
+  genesis_phase_change: "text-purple-400",
+  genesis_narrative: "text-slate-500",
+  genesis_token_usage: "text-slate-500",
+  genesis_complete: "text-green-300",
+  genesis_stopped: "text-slate-500",
+  genesis_reset: "text-slate-600",
+  genesis_error: "text-red-500",
   // Arena mode
   arena_started: "text-violet-400",
   arena_round_start: "text-slate-400",
@@ -115,7 +148,7 @@ function compressionColor(ratio: number): string {
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<"classic" | "arena">("classic");
+  const [mode, setMode] = useState<"classic" | "arena" | "genesis">("classic");
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
   const [agent, setAgent] = useState<AgentState | null>(null);
   const [solver, setSolver] = useState<SolverState | null>(null);
@@ -126,6 +159,13 @@ export default function Home() {
   const [arenaRounds, setArenaRounds] = useState(10);
   const [connected, setConnected] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
+
+  // Genesis state
+  const [genesisRunning, setGenesisRunning] = useState(false);
+  const [genesisStatus, setGenesisStatus] = useState<GenesisStatus | null>(null);
+  const [genesisFiles, setGenesisFiles] = useState<GenesisFile[]>([]);
+  const [genesisNarrative, setGenesisNarrative] = useState<string | null>(null);
+  const [genesisMaxIter, setGenesisMaxIter] = useState(1000);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -177,6 +217,39 @@ export default function Home() {
             .then((d) => setProtocol(d as ProtocolState))
             .catch(() => null);
         }
+
+        // Genesis mode state
+        if (ev.event === "genesis_started") setGenesisRunning(true);
+        if (ev.event === "genesis_stopped" || ev.event === "genesis_complete" || ev.event === "genesis_error") {
+          setGenesisRunning(false);
+        }
+        if (ev.event.startsWith("genesis_")) {
+          // Update status from the event data
+          setGenesisStatus((prev) => {
+            const next = { ...(prev ?? { running: false, phase: "RESEARCH", iteration: 0, total_cost_usd: 0, files_created: [], last_assessment: null }) };
+            if (ev.event === "genesis_phase_change") next.phase = (ev.data.new_phase as string) ?? next.phase;
+            if (ev.event === "genesis_tool_call") next.iteration = (ev.data.iteration as number) ?? next.iteration;
+            if (ev.event === "genesis_token_usage") next.total_cost_usd = (ev.data.total_cost_usd as number) ?? next.total_cost_usd;
+            if (ev.event === "genesis_assessment") next.last_assessment = ev.data.scores as GenesisScores;
+            if (ev.event === "genesis_file_changed") {
+              const path = ev.data.path as string;
+              if (path && !next.files_created.includes(path)) next.files_created = [...next.files_created, path];
+            }
+            if (ev.event === "genesis_complete") {
+              next.files_created = (ev.data.files_created as string[]) ?? next.files_created;
+              next.phase = "COMPLETE";
+            }
+            return next;
+          });
+          // Refresh workspace file list on file changes
+          if (ev.event === "genesis_file_changed" || ev.event === "genesis_complete") {
+            fetch(`${API}/api/genesis/workspace`).then((r) => r.json()).then((d) => setGenesisFiles(d.files ?? [])).catch(() => null);
+          }
+          // Update narrative when BUILD_LOG changes
+          if (ev.event === "genesis_narrative") {
+            setGenesisNarrative(ev.data.text as string);
+          }
+        }
       };
     };
     connect();
@@ -191,12 +264,21 @@ export default function Home() {
     Promise.all([
       fetch(`${API}/api/evolve/status`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/api/arena/status`).then((r) => r.json()).catch(() => null),
-    ]).then(([classic, arena]) => {
+      fetch(`${API}/api/genesis/status`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/api/genesis/workspace`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/api/genesis/narrative`).then((r) => r.json()).catch(() => null),
+    ]).then(([classic, arena, genesis, workspace, narrative]) => {
       if (classic?.agent) setAgent(classic.agent);
       if (classic?.status === "running") setRunning(true);
       if (arena?.solver) setSolver(arena.solver);
       if (arena?.protocol) setProtocol(arena.protocol as ProtocolState);
       if (arena?.status === "running") setArenaRunning(true);
+      if (genesis && !genesis.error) {
+        setGenesisStatus(genesis as GenesisStatus);
+        if (genesis.running) setGenesisRunning(true);
+      }
+      if (workspace?.files) setGenesisFiles(workspace.files as GenesisFile[]);
+      if (narrative?.content) setGenesisNarrative(narrative.content as string);
     });
   }, []);
 
@@ -235,6 +317,31 @@ export default function Home() {
     await fetch(`${API}/api/arena/reset`, { method: "POST" });
   };
 
+  const startGenesis = async () => {
+    setEvents([]);
+    setGenesisFiles([]);
+    setGenesisNarrative(null);
+    setGenesisStatus({ running: true, phase: "RESEARCH", iteration: 0, total_cost_usd: 0, files_created: [], last_assessment: null });
+    setGenesisRunning(true);
+    await fetch(`${API}/api/genesis/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ max_iterations: genesisMaxIter }),
+    });
+  };
+
+  const stopGenesis = async () => {
+    await fetch(`${API}/api/genesis/stop`, { method: "POST" });
+  };
+
+  const resetGenesis = async () => {
+    setGenesisStatus(null);
+    setGenesisFiles([]);
+    setGenesisNarrative(null);
+    setEvents([]);
+    await fetch(`${API}/api/genesis/reset`, { method: "POST" });
+  };
+
   const latestCompression =
     protocol?.round_history?.length
       ? protocol.round_history[protocol.round_history.length - 1].compression_ratio
@@ -266,6 +373,14 @@ export default function Home() {
               }`}
             >
               Arena
+            </button>
+            <button
+              onClick={() => setMode("genesis")}
+              className={`px-4 py-1.5 rounded text-sm font-bold transition-colors ${
+                mode === "genesis" ? "bg-orange-700 text-white" : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              Genesis {genesisRunning && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />}
             </button>
           </div>
           {/* WS indicator */}
@@ -487,6 +602,171 @@ export default function Home() {
         </>
       )}
 
+      {/* ── Genesis mode ──────────────────────────────────────────── */}
+      {mode === "genesis" && (
+        <>
+          {/* Stats bar */}
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              {
+                label: "Phase",
+                value: genesisStatus?.phase ?? "IDLE",
+                color: genesisStatus?.phase === "COMPLETE" ? "text-green-400" : genesisRunning ? "text-orange-400" : "text-slate-400",
+              },
+              {
+                label: "Iteration",
+                value: genesisStatus?.iteration ?? 0,
+                color: "text-white",
+              },
+              {
+                label: "Cost",
+                value: `$${(genesisStatus?.total_cost_usd ?? 0).toFixed(3)}`,
+                color: (genesisStatus?.total_cost_usd ?? 0) > 80 ? "text-red-400" : (genesisStatus?.total_cost_usd ?? 0) > 50 ? "text-yellow-400" : "text-white",
+              },
+              {
+                label: "Files",
+                value: genesisFiles.length,
+                color: "text-white",
+              },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">{label}</p>
+                <p className={`text-xl font-bold font-mono ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Capability scores */}
+          {genesisStatus?.last_assessment && (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+              <p className="text-slate-500 text-xs uppercase tracking-widest">Capability Assessment</p>
+              <div className="grid grid-cols-5 gap-3">
+                {(["overall", "reasoning", "tool_use", "error_handling", "self_improvement"] as const).map((key) => {
+                  const score = genesisStatus.last_assessment![key];
+                  const bar = Math.round(score / 10);
+                  const color = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-teal-500" : score >= 40 ? "bg-yellow-500" : "bg-slate-600";
+                  return (
+                    <div key={key}>
+                      <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">
+                        {key.replace("_", " ")}
+                      </p>
+                      <p className={`text-2xl font-bold ${score >= 80 ? "text-emerald-400" : score >= 60 ? "text-teal-400" : score >= 40 ? "text-yellow-400" : "text-slate-500"}`}>
+                        {score}
+                      </p>
+                      <div className="flex gap-0.5 mt-1">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div key={i} className={`h-1 flex-1 rounded-full ${i < bar ? color : "bg-slate-800"}`} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Action feed + workspace files */}
+          <div className="grid grid-cols-2 gap-4" style={{ minHeight: "200px" }}>
+            {/* Action feed */}
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 overflow-y-auto max-h-64 space-y-1">
+              <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Action Feed</p>
+              {events.filter((e) => e.event.startsWith("genesis_")).slice(-50).map((ev, i) => (
+                <div key={i} className="flex gap-2 text-xs leading-relaxed">
+                  <span className={`shrink-0 ${EVENT_COLORS[ev.event] ?? "text-slate-400"}`}>
+                    {ev.event.replace("genesis_", "")}
+                  </span>
+                  <span className="text-slate-400 truncate">
+                    {ev.event === "genesis_tool_call"
+                      ? `${ev.data.tool} — ${String(ev.data.args_preview).slice(0, 60)}`
+                      : ev.event === "genesis_tool_result"
+                      ? `${ev.data.tool} ${ev.data.success ? "✓" : "✗"} ${ev.data.duration_ms}ms`
+                      : ev.event === "genesis_thinking"
+                      ? String(ev.data.thought).slice(0, 80)
+                      : ev.event === "genesis_phase_change"
+                      ? `${ev.data.old_phase} → ${ev.data.new_phase}`
+                      : ev.event === "genesis_file_changed"
+                      ? `${ev.data.action} ${ev.data.path}`
+                      : JSON.stringify(ev.data).slice(0, 60)}
+                  </span>
+                </div>
+              ))}
+              {events.filter((e) => e.event.startsWith("genesis_")).length === 0 && (
+                <p className="text-slate-600 text-xs">No genesis events yet...</p>
+              )}
+            </div>
+
+            {/* Workspace files */}
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 overflow-y-auto max-h-64 space-y-1">
+              <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Workspace Files</p>
+              {genesisFiles.length === 0 ? (
+                <p className="text-slate-600 text-xs">No files yet...</p>
+              ) : (
+                genesisFiles.map((f) => (
+                  <div key={f.path} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-mono truncate">{f.path}</span>
+                    <span className="text-slate-600 shrink-0 ml-2">{f.size_bytes}B</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Narrative panel (BUILD_LOG.md) */}
+          {genesisNarrative && (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+              <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Narrative — BUILD_LOG.md</p>
+              <pre className="text-slate-300 text-xs whitespace-pre-wrap font-mono leading-relaxed max-h-40 overflow-y-auto">
+                {genesisNarrative}
+              </pre>
+            </div>
+          )}
+
+          {/* Controls */}
+          <div className="flex items-center gap-4">
+            <label className="text-slate-400 text-sm">
+              Max Iterations:
+              <input
+                type="number"
+                min={10}
+                max={2000}
+                step={100}
+                value={genesisMaxIter}
+                onChange={(e) => setGenesisMaxIter(Number(e.target.value))}
+                className="ml-2 w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-sm"
+              />
+            </label>
+            <button
+              onClick={startGenesis}
+              disabled={genesisRunning || !connected}
+              className="px-6 py-2 rounded bg-orange-700 hover:bg-orange-600 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold transition-colors"
+            >
+              {genesisRunning ? "BUILDING..." : "START GENESIS"}
+            </button>
+            {genesisRunning && (
+              <button
+                onClick={stopGenesis}
+                className="px-4 py-2 rounded border border-red-700 hover:border-red-500 text-red-400 text-sm transition-colors"
+              >
+                Stop
+              </button>
+            )}
+            <button
+              onClick={resetGenesis}
+              disabled={genesisRunning}
+              className="px-4 py-2 rounded border border-slate-700 hover:border-slate-500 disabled:opacity-40 text-slate-400 text-sm transition-colors"
+            >
+              Reset Workspace
+            </button>
+            <button
+              onClick={() => setEvents([])}
+              className="px-4 py-2 rounded border border-slate-700 hover:border-slate-500 text-slate-400 text-sm transition-colors"
+            >
+              Clear Feed
+            </button>
+          </div>
+        </>
+      )}
+
       {/* ── Event feed (shared) ───────────────────────────────────── */}
       <div
         ref={feedRef}
@@ -513,6 +793,18 @@ export default function Home() {
                 ? `ratio=${ev.data.compression_ratio} vocab=${ev.data.vocab_size}`
                 : ev.event === "arena_protocol_consolidate"
                 ? `stage=${ev.data.new_stage} vocab=${ev.data.vocab_size}`
+                : ev.event === "genesis_thinking"
+                ? String(ev.data.thought).slice(0, 150) + (String(ev.data.thought).length > 150 ? "…" : "")
+                : ev.event === "genesis_tool_call"
+                ? `${ev.data.tool}(${String(ev.data.args_preview).slice(0, 80)})`
+                : ev.event === "genesis_tool_result"
+                ? `${ev.data.tool} ${ev.data.success ? "✓" : "✗"} ${ev.data.duration_ms}ms — ${String(ev.data.output_preview).slice(0, 60)}`
+                : ev.event === "genesis_file_changed"
+                ? `${ev.data.action} ${ev.data.path} (${ev.data.size_bytes}B)`
+                : ev.event === "genesis_phase_change"
+                ? `${ev.data.old_phase} → ${ev.data.new_phase}`
+                : ev.event === "genesis_token_usage"
+                ? `$${(ev.data.total_cost_usd as number).toFixed(4)} | in=${ev.data.prompt_tokens} out=${ev.data.completion_tokens}`
                 : JSON.stringify(ev.data)}
             </span>
           </div>
