@@ -20,6 +20,10 @@ Genesis mode:
 - GET  /api/genesis/workspace — list workspace files
 - GET  /api/genesis/narrative — latest BUILD_LOG.md content
 
+Growth registry:
+- GET  /api/growth/latest     — latest run summary and status breakdown
+- GET  /api/growth/runs/{run_id} — full record bundle for one growth run
+
 WS /ws/evolution          — real-time event stream (all modes share this channel)
 """
 
@@ -29,7 +33,7 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
 from pydantic import BaseModel
@@ -51,6 +55,7 @@ from evolution.bootstrap_protocol import BootstrapProtocol
 from evolution.genesis import run_genesis
 from evolution.genesis_sandbox import WORKSPACE_ROOT, ensure_workspace
 from evolution.genesis_tools import TOOL_DEFINITIONS
+from evolution.growth_registry import read_latest_summary, read_run_bundle
 from evolution.protocol import Protocol
 
 load_dotenv()
@@ -643,3 +648,16 @@ async def get_genesis_narrative():
         return {"content": None}
     content = log_path.read_text(encoding="utf-8", errors="replace")
     return {"content": content[-4000:] if len(content) > 4000 else content}
+
+
+@app.get("/api/growth/latest")
+async def get_growth_latest():
+    return read_latest_summary()
+
+
+@app.get("/api/growth/runs/{run_id}")
+async def get_growth_run(run_id: str):
+    try:
+        return read_run_bundle(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

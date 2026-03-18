@@ -137,33 +137,39 @@ The dashboard is positioned as a workbench rather than a generic dev console.
 The frontend uses the current backend contract as-is:
 
 - REST: classic, arena, bootstrap, and genesis start/stop/reset/status endpoints
+- Growth registry: `/api/growth/latest` and `/api/growth/runs/{run_id}`
 - WebSocket: `/ws/evolution`
 - Supporting status views: protocol, artifacts, workspace, and recent narrative endpoints
 
-## Supporting Services
+## Growth Registry
 
-The repo also includes a non-primary factory control layer for repo stewardship:
+This branch now includes a lightweight append-only growth registry foundation for post-submission research and promotion work.
 
-- Housekeeping audits: branch/worktree health, checkpoint readiness, docs drift, and validation visibility
-- Housekeeping supervisor: approval-gated operator reports and planned next actions
+- Canonical storage root: `ops/nightly/registry/`
+- Format: one JSONL file per record family under `ops/nightly/registry/<run_id>/`
+- Record families:
+  - `frontier_signals`
+  - `growth_artifacts`
+  - `claim_checks`
+  - `promotion_candidates`
 
-Endpoints:
+Read endpoints:
 
 ```bash
-POST /api/housekeeping/start
-POST /api/housekeeping/stop
-POST /api/housekeeping/reset
-GET  /api/housekeeping/status
-GET  /api/housekeeping/report
-
-POST /api/housekeeping/supervisor/start
-POST /api/housekeeping/supervisor/stop
-POST /api/housekeeping/supervisor/reset
-GET  /api/housekeeping/supervisor/status
-GET  /api/housekeeping/supervisor/report
+GET /api/growth/latest
+GET /api/growth/runs/{run_id}
 ```
 
-The submission-grade workbench remains centered on the four experiment types above.
+The registry is intentionally read-only in v1. Writers should use the file helpers in `evolution/growth_registry.py` until the model stabilizes.
+
+## Experimental Branches
+
+This private mirror still has branch-only experiments that are not shipped by the current API surface:
+
+- `origin/codex/app`: housekeeping audit and housekeeping supervisor work
+- `origin/agent-suite-lab`: genesis memory experiments
+
+Do not describe those surfaces as shipped functionality on this branch until they are validated and landed.
 
 ## Split Deployment
 
