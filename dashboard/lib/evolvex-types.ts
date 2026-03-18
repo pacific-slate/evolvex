@@ -261,6 +261,15 @@ export type GrowthPromotionQueueResponse = {
   root?: string;
 };
 
+export type GrowthRealityContractVerifyResponse = {
+  run_id: string;
+  total: number;
+  landed: number;
+  unsupported: number;
+  contract_path: string;
+  error?: string;
+};
+
 export type WorkbenchRawState = {
   connected: boolean;
   events: EvolutionEvent[];

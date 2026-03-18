@@ -1,0 +1,105 @@
+{
+  "claims": [
+    {
+      "id": "claim-growth-latest-route",
+      "claim": "The post-submission API ships a latest growth summary endpoint.",
+      "source": "README.md",
+      "local_repo_mapping": "api.py",
+      "check": {
+        "type": "fastapi_route",
+        "method": "GET",
+        "path": "/api/growth/latest"
+      },
+      "notes_if_pass": "Growth summary route is present in the FastAPI surface.",
+      "notes_if_fail": "README claim drifted ahead of the API surface."
+    },
+    {
+      "id": "claim-growth-promotion-queue-route",
+      "claim": "The post-submission API ships a promotion queue endpoint.",
+      "source": "README.md",
+      "local_repo_mapping": "api.py",
+      "check": {
+        "type": "fastapi_route",
+        "method": "GET",
+        "path": "/api/growth/promotion-queue"
+      },
+      "notes_if_pass": "Promotion queue route is present in the FastAPI surface.",
+      "notes_if_fail": "Promotion queue is described, but the route is missing."
+    },
+    {
+      "id": "claim-genesis-registers-growth",
+      "claim": "Genesis completion creates a durable growth record instead of leaving outputs ephemeral.",
+      "source": "README.md",
+      "local_repo_mapping": "api.py",
+      "check": {
+        "type": "text_contains",
+        "path": "api.py",
+        "patterns": [
+          "register_genesis_completion(",
+          "\"event\": \"genesis_growth_recorded\""
+        ]
+      },
+      "notes_if_pass": "Genesis completion is wired into the growth registry and emits a follow-on event.",
+      "notes_if_fail": "Genesis still completes without recording a durable growth artifact."
+    },
+    {
+      "id": "claim-dashboard-growth-console",
+      "claim": "The dashboard exposes a VS Code-like growth operator console with claim and promotion visibility.",
+      "source": "dashboard/components/workbench-shell.tsx",
+      "local_repo_mapping": "dashboard/components/workbench-shell.tsx",
+      "check": {
+        "type": "text_contains",
+        "path": "dashboard/components/workbench-shell.tsx",
+        "patterns": [
+          "Verified growth registry and promotion control plane",
+          "Claim Status",
+          "Promotion Queue"
+        ]
+      },
+      "notes_if_pass": "The operator console exposes registry HUD, claim status, and promotion queue surfaces.",
+      "notes_if_fail": "The dashboard story references an operator console, but the shell is missing one or more key surfaces."
+    },
+    {
+      "id": "claim-dashboard-fetches-growth-data",
+      "claim": "The dashboard hydrates itself from live growth registry API routes.",
+      "source": "dashboard/hooks/use-evolvex-dashboard.ts",
+      "local_repo_mapping": "dashboard/hooks/use-evolvex-dashboard.ts",
+      "check": {
+        "type": "text_contains",
+        "path": "dashboard/hooks/use-evolvex-dashboard.ts",
+        "patterns": [
+          "/api/growth/latest",
+          "/api/growth/runs",
+          "/api/growth/promotion-queue"
+        ]
+      },
+      "notes_if_pass": "The dashboard hook fetches latest growth state, run summaries, and the promotion queue.",
+      "notes_if_fail": "Growth surfaces are present in the UI, but not backed by live API fetches."
+    },
+    {
+      "id": "claim-truth-gate-refresh",
+      "claim": "Operators can refresh claim checks against the current branch from the product surface.",
+      "source": "ops/nightly/contracts/reality_contract.json",
+      "check": {
+        "type": "fastapi_route",
+        "method": "POST",
+        "path": "/api/growth/reality-contract/verify"
+      },
+      "notes_if_pass": "The truth gate can be triggered against the current branch without leaving the product.",
+      "notes_if_fail": "Claim checks still exist only as imported data, not as a live verification action."
+    },
+    {
+      "id": "claim-dashboard-promotion-approval",
+      "claim": "Operators can promote candidates directly from the dashboard.",
+      "source": "ops/nightly/artifacts/2026-03-18_OPPORTUNITY_MATRIX.md",
+      "local_repo_mapping": "dashboard/components/workbench-shell.tsx",
+      "check": {
+        "type": "text_contains",
+        "path": "dashboard/components/workbench-shell.tsx",
+        "pattern": "Promote Candidate"
+      },
+      "notes_if_pass": "The console includes a direct promotion affordance.",
+      "notes_if_fail": "Promotion remains visible but not yet operator-executable from the dashboard."
+    }
+  ]
+}

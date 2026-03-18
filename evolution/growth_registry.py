@@ -264,6 +264,23 @@ def list_run_ids() -> list[str]:
     return sorted(item.name for item in root.iterdir() if item.is_dir())
 
 
+def replace_family(run_id: str, family: str, records: list[dict]) -> list[dict]:
+    normalized_run_id = normalize_run_id(run_id)
+    path = record_path(normalized_run_id, family)
+    if path.exists():
+        path.unlink()
+
+    written: list[dict] = []
+    for record in records:
+        normalized = dict(record)
+        normalized.setdefault("run_id", normalized_run_id)
+        written.append(append_record(family, normalized))
+
+    if not written and run_dir(normalized_run_id).exists():
+        write_latest_index(normalized_run_id)
+    return written
+
+
 def _latest_recorded_at(records: dict[str, list[dict]]) -> str | None:
     timestamps = [
         str(item.get("recorded_at"))

@@ -25,6 +25,7 @@ Growth registry:
 - GET  /api/growth/runs       — recent run summaries
 - GET  /api/growth/runs/{run_id} — full record bundle for one growth run
 - GET  /api/growth/promotion-queue — promotion candidates across runs
+- POST /api/growth/reality-contract/verify — refresh claim checks against the current branch
 
 WS /ws/evolution          — real-time event stream (all modes share this channel)
 """
@@ -64,6 +65,7 @@ from evolution.growth_registry import (
     read_run_bundle,
     register_genesis_completion,
 )
+from evolution.reality_contract import verify_reality_contract
 from evolution.protocol import Protocol
 
 load_dotenv()
@@ -543,6 +545,11 @@ class GenesisStartRequest(BaseModel):
     max_iterations: int = 1000
 
 
+class RealityContractVerifyRequest(BaseModel):
+    run_id: str | None = None
+    replace_existing_claims: bool = True
+
+
 @app.post("/api/genesis/start")
 async def start_genesis(req: GenesisStartRequest):
     global _genesis_running, _genesis_stop_flag, _genesis_status
@@ -707,3 +714,27 @@ async def get_growth_promotion_queue():
         "latest_run_id": latest.get("latest_run_id"),
         "root": latest.get("root"),
     }
+
+
+@app.post("/api/growth/reality-contract/verify")
+async def post_growth_reality_contract_verify(req: RealityContractVerifyRequest):
+    try:
+        result = verify_reality_contract(
+            run_id=req.run_id,
+            replace_existing=req.replace_existing_claims,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await broadcast(
+        {
+            "event": "growth_contract_verified",
+            "data": {
+                "run_id": result["run_id"],
+                "total": result["total"],
+                "landed": result["landed"],
+                "unsupported": result["unsupported"],
+            },
+        }
+    )
+    return result

@@ -138,7 +138,7 @@ The dashboard is positioned as a VS Code-like operator console rather than a gen
 The frontend uses the current backend contract as-is:
 
 - REST: classic, arena, bootstrap, and genesis start/stop/reset/status endpoints
-- Growth registry: `/api/growth/latest`, `/api/growth/runs`, `/api/growth/runs/{run_id}`, and `/api/growth/promotion-queue`
+- Growth registry: `/api/growth/latest`, `/api/growth/runs`, `/api/growth/runs/{run_id}`, `/api/growth/promotion-queue`, and `POST /api/growth/reality-contract/verify`
 - WebSocket: `/ws/evolution`
 - Supporting status views: protocol, artifacts, workspace, and recent narrative endpoints
 
@@ -156,6 +156,8 @@ This branch now includes a lightweight append-only growth registry foundation fo
 - Seeded public-safe validated rerun: `2026-03-18-validated-rerun`
 - Import bundle: `ops/nightly/bundles/2026-03-18-validated-rerun.json`
 - Import command: `python3 scripts/import_growth_bundle.py ops/nightly/bundles/2026-03-18-validated-rerun.json --replace-run`
+- Reality contract: `ops/nightly/contracts/reality_contract.json`
+- Truth-gate refresh command: `python3 scripts/verify_reality_contract.py --run-id 2026-03-18-validated-rerun`
 
 Read endpoints:
 
@@ -164,13 +166,17 @@ GET /api/growth/latest
 GET /api/growth/runs
 GET /api/growth/runs/{run_id}
 GET /api/growth/promotion-queue
+POST /api/growth/reality-contract/verify
 ```
 
 Write paths:
 
 - `evolution/growth_registry.py` exposes append/import helpers for durable records
 - `scripts/import_growth_bundle.py` imports a structured validated run bundle
+- `evolution/reality_contract.py` verifies product claims against the current branch
+- `scripts/verify_reality_contract.py` refreshes `claim_checks` from the repo-backed reality contract
 - Genesis completion automatically writes a durable growth artifact and review candidate into the registry
+- The operator console can trigger the truth gate and refresh claim status without leaving the dashboard
 
 ## Experimental Branches
 

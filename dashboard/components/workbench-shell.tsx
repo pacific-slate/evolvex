@@ -116,19 +116,36 @@ function GrowthConsole({
   growthRuns,
   growthLatestRun,
   growthPromotionQueue,
+  onVerifyRealityContract,
+  verifyingRealityContract,
 }: {
   apiBase: string;
   growthLatest: GrowthLatestSummary | null;
   growthRuns: GrowthRunSummary[];
   growthLatestRun: GrowthRunBundle | null;
   growthPromotionQueue: GrowthPromotionCandidate[];
+  onVerifyRealityContract: () => void;
+  verifyingRealityContract: boolean;
 }) {
   const counts = growthLatest?.counts;
   const candidateTitle = growthLatest?.top_candidate?.title ?? growthPromotionQueue[0]?.title ?? "No candidate yet";
   const queueTone: StatusTone = growthPromotionQueue.length ? "active" : "idle";
 
   return (
-    <Panel className="console-panel" kicker="Operator Console" title="Verified growth registry and promotion control plane">
+    <Panel
+      className="console-panel"
+      kicker="Operator Console"
+      title="Verified growth registry and promotion control plane"
+      actions={
+        <button
+          onClick={onVerifyRealityContract}
+          disabled={verifyingRealityContract}
+          className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-xs uppercase tracking-[0.18em] text-cyan-50 transition hover:border-cyan-200/45 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {verifyingRealityContract ? "Running truth gate" : "Run truth gate"}
+        </button>
+      }
+    >
       <div className="console-toolbar">
         <span className="console-pill">Workspace `post-submission-dev`</span>
         <span className="console-pill">API {apiBase}</span>
@@ -325,6 +342,8 @@ export function WorkbenchShell({
   growthRuns,
   growthLatestRun,
   growthPromotionQueue,
+  onVerifyRealityContract,
+  verifyingRealityContract,
   canvas,
   dock,
 }: {
@@ -342,6 +361,8 @@ export function WorkbenchShell({
   growthRuns: GrowthRunSummary[];
   growthLatestRun: GrowthRunBundle | null;
   growthPromotionQueue: GrowthPromotionCandidate[];
+  onVerifyRealityContract: () => void;
+  verifyingRealityContract: boolean;
   canvas: ReactNode;
   dock: ReactNode;
 }) {
@@ -458,6 +479,8 @@ export function WorkbenchShell({
           growthRuns={growthRuns}
           growthLatestRun={growthLatestRun}
           growthPromotionQueue={growthPromotionQueue}
+          onVerifyRealityContract={onVerifyRealityContract}
+          verifyingRealityContract={verifyingRealityContract}
         />
 
         <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">

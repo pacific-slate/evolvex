@@ -22,12 +22,18 @@ This branch also ships a growth registry substrate plus operator-console surface
 - reader module: `evolution/growth_registry.py`
 - seeded validated run: `2026-03-18-validated-rerun`
 - import script: `scripts/import_growth_bundle.py`
+- reality contract: `ops/nightly/contracts/reality_contract.json`
+- verifier module: `evolution/reality_contract.py`
+- truth-gate script: `scripts/verify_reality_contract.py`
 - read endpoints:
   - `GET /api/growth/latest`
   - `GET /api/growth/runs`
   - `GET /api/growth/runs/{run_id}`
   - `GET /api/growth/promotion-queue`
+- write/refresh endpoint:
+  - `POST /api/growth/reality-contract/verify`
 - Genesis completion now auto-registers a durable growth artifact and review candidate.
+- The operator console can refresh `claim_checks` against the live branch and keep one intentionally unsupported claim visible until promotion actions are actually shipped.
 
 ## Current Truth Boundary
 
@@ -50,7 +56,9 @@ This branch also ships a growth registry substrate plus operator-console surface
 
 - `api.py` — FastAPI server and endpoint contract
 - `evolution/growth_registry.py` — append-only growth registry helpers
+- `evolution/reality_contract.py` — repo-backed claim verification and truth-gate refresh
 - `scripts/import_growth_bundle.py` — imports structured validated-run bundles
+- `scripts/verify_reality_contract.py` — refreshes claim checks from the reality contract
 - `agents/performer.py`, `agents/analyzer.py`, `agents/modifier.py` — Classic loop
 - `agents/solver.py`, `agents/challenger.py` — Arena mode
 - `agents/bootstrap_peer.py` — Bootstrap peers

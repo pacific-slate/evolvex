@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 import pytest
 
 from evolution import growth_registry
+from evolution import reality_contract
 
 
 def _frontier_signal(run_id: str) -> dict:
@@ -75,6 +79,11 @@ def _bundle(run_id: str) -> dict:
             "promotion_candidates": [_promotion_candidate(run_id)],
         },
     }
+
+
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def test_append_record_creates_jsonl_and_latest_index(monkeypatch, tmp_path):
@@ -181,6 +190,118 @@ def test_register_genesis_completion_creates_review_candidate(monkeypatch, tmp_p
     assert summary["records"]["growth_artifacts"][0]["artifact_path"] == "/tmp/evolvex-workspace"
 
 
+def test_replace_family_rewrites_existing_claim_checks(monkeypatch, tmp_path):
+    monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(tmp_path))
+    run_id = "2026-03-18-run"
+
+    growth_registry.import_bundle(_bundle(run_id))
+    replaced = growth_registry.replace_family(
+        run_id,
+        "claim_checks",
+        [
+            {
+                "id": "claim-replaced",
+                "run_id": run_id,
+                "claim": "growth latest route is shipped",
+                "source": "README.md",
+                "local_repo_mapping": "api.py",
+                "status": "landed",
+                "notes": "verified route",
+            }
+        ],
+    )
+
+    bundle = growth_registry.read_run_bundle(run_id)
+
+    assert len(replaced) == 1
+    assert bundle["counts"]["claim_checks"] == 1
+    assert bundle["records"]["claim_checks"][0]["id"] == "claim-replaced"
+    assert bundle["records"]["promotion_candidates"][0]["id"] == "promotion-1"
+
+
+def test_verify_reality_contract_replaces_claim_family_on_existing_run(monkeypatch, tmp_path):
+    registry_root = tmp_path / "registry"
+    repo_root = tmp_path / "repo"
+    contract_path = repo_root / "ops" / "nightly" / "contracts" / "reality_contract.json"
+
+    monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(registry_root))
+
+    growth_registry.import_bundle(_bundle("validated-run"))
+
+    _write(
+        repo_root / "api.py",
+        '\n'.join(
+            [
+                '@app.get("/api/growth/latest")',
+                "async def latest():",
+                "    return {}",
+                '@app.post("/api/growth/reality-contract/verify")',
+                "async def verify():",
+                "    return {}",
+                "",
+            ]
+        ),
+    )
+    _write(repo_root / "dashboard" / "components" / "workbench-shell.tsx", "Claim Status\nPromotion Queue\n")
+    _write(repo_root / "README.md", "# test\n")
+
+    contract_path.parent.mkdir(parents=True, exist_ok=True)
+    contract_path.write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "id": "claim-route",
+                        "claim": "growth latest route exists",
+                        "source": "README.md",
+                        "check": {"type": "fastapi_route", "method": "GET", "path": "/api/growth/latest"},
+                    },
+                    {
+                        "id": "claim-console",
+                        "claim": "console exposes claim status",
+                        "source": "dashboard/components/workbench-shell.tsx",
+                        "check": {
+                            "type": "text_contains",
+                            "path": "dashboard/components/workbench-shell.tsx",
+                            "patterns": ["Claim Status", "Promotion Queue"],
+                        },
+                    },
+                    {
+                        "id": "claim-missing",
+                        "claim": "promotion action exists",
+                        "source": "dashboard/components/workbench-shell.tsx",
+                        "check": {
+                            "type": "text_contains",
+                            "path": "dashboard/components/workbench-shell.tsx",
+                            "pattern": "Promote Candidate",
+                        },
+                    },
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = reality_contract.verify_reality_contract(
+        run_id="validated-run",
+        contract_path=contract_path,
+        repo_root=repo_root,
+    )
+
+    bundle = growth_registry.read_run_bundle("validated-run")
+
+    assert result["run_id"] == "validated-run"
+    assert result["landed"] == 2
+    assert result["unsupported"] == 1
+    assert bundle["counts"]["claim_checks"] == 3
+    assert {item["id"] for item in bundle["records"]["claim_checks"]} == {
+        "claim-route",
+        "claim-console",
+        "claim-missing",
+    }
+
+
 def test_growth_api_returns_latest_summary_and_run_records(monkeypatch, tmp_path):
     monkeypatch.setenv("EVOLVEX_GROWTH_REGISTRY_ROOT", str(tmp_path))
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -215,5 +336,13 @@ def test_growth_api_returns_latest_summary_and_run_records(monkeypatch, tmp_path
     assert queue.status_code == 200
     assert queue.json()["total"] == 1
     assert queue.json()["candidates"][0]["title"] == "Verified Growth Registry"
+
+    verify = client.post(
+        "/api/growth/reality-contract/verify",
+        json={"run_id": run_id, "replace_existing_claims": True},
+    )
+    assert verify.status_code == 200
+    assert verify.json()["run_id"] == run_id
+    assert verify.json()["total"] >= 1
 
     assert missing.status_code == 404

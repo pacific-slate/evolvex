@@ -24,6 +24,8 @@ export default function Home() {
       growthRuns={dashboard.data.growthRuns}
       growthLatestRun={dashboard.data.growthLatestRun}
       growthPromotionQueue={dashboard.data.growthPromotionQueue}
+      onVerifyRealityContract={dashboard.actions.verifyRealityContract}
+      verifyingRealityContract={dashboard.data.growthContractRunning}
       canvas={<ModeSections dashboard={dashboard} />}
       dock={<EventDock dashboard={dashboard} />}
     />

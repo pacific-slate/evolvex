@@ -19,6 +19,7 @@ import type {
   GrowthLatestSummary,
   GrowthPromotionCandidate,
   GrowthPromotionQueueResponse,
+  GrowthRealityContractVerifyResponse,
   GrowthRunBundle,
   GrowthRunsResponse,
   ModeKey,
@@ -66,6 +67,7 @@ export function useEvolvexDashboard() {
   const [growthRuns, setGrowthRuns] = useState<GrowthRunsResponse["runs"]>([]);
   const [growthLatestRun, setGrowthLatestRun] = useState<GrowthRunBundle | null>(null);
   const [growthPromotionQueue, setGrowthPromotionQueue] = useState<GrowthPromotionCandidate[]>([]);
+  const [growthContractRunning, setGrowthContractRunning] = useState(false);
   const [cycles, setCycles] = useState(5);
   const [arenaRounds, setArenaRounds] = useState(10);
   const [bootstrapRounds, setBootstrapRounds] = useState(12);
@@ -284,7 +286,7 @@ export function useEvolvexDashboard() {
           if (event.event === "genesis_narrative") {
             setGenesisNarrative((event.data.text as string) ?? null);
           }
-          if (["genesis_complete", "genesis_growth_recorded", "genesis_reset"].includes(event.event)) {
+          if (["genesis_complete", "genesis_growth_recorded", "genesis_reset", "growth_contract_verified"].includes(event.event)) {
             void refreshGrowth();
           }
         }
@@ -470,6 +472,20 @@ export function useEvolvexDashboard() {
     }
   }, [post, refreshGenesisStatus, refreshGenesisWorkspace]);
 
+  const verifyRealityContract = useCallback(async () => {
+    setGrowthContractRunning(true);
+    const payload = await post<GrowthRealityContractVerifyResponse>("/api/growth/reality-contract/verify", {
+      run_id: growthLatest?.latest_run_id ?? growthRuns[0]?.run_id ?? null,
+      replace_existing_claims: true,
+    });
+    setGrowthContractRunning(false);
+
+    if (payload && !payload.error) {
+      setOperatorNotice(`Truth gate refreshed: ${payload.landed}/${payload.total} landed, ${payload.unsupported} unsupported.`);
+      void refreshGrowth();
+    }
+  }, [growthLatest?.latest_run_id, growthRuns, post, refreshGrowth]);
+
   const rawState: WorkbenchRawState = useMemo(
     () => ({
       connected,
@@ -553,6 +569,7 @@ export function useEvolvexDashboard() {
       startGenesis,
       stopGenesis,
       resetGenesis,
+      verifyRealityContract,
     },
     derived: {
       activeDefinition,
@@ -581,6 +598,7 @@ export function useEvolvexDashboard() {
       growthRuns,
       growthLatestRun,
       growthPromotionQueue,
+      growthContractRunning,
       currentCode,
     },
   };
