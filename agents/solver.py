@@ -70,7 +70,7 @@ class Solver(Agent):
                 {"role": "system", "content": system},
                 {"role": "user", "content": challenge_description},
             ],
-            max_tokens=400,
+            max_completion_tokens=400,
             temperature=0.2,
         )
         return (response.choices[0].message.content or "").strip()
@@ -80,7 +80,7 @@ class Solver(Agent):
     ) -> list[dict]:
         """
         Called when Solver wins. Propose 1-3 vocabulary tokens based on the solved challenge.
-        Uses a small LLM call (max_tokens=100). Returns list of {token, meaning} dicts.
+        Uses a small LLM call (max_completion_tokens=100). Returns list of {token, meaning} dicts.
         """
         if self._protocol is None:
             return []
@@ -93,7 +93,7 @@ class Solver(Agent):
             response = await self._client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
+                max_completion_tokens=100,
                 temperature=0.8,
                 response_format={"type": "json_object"},
             )

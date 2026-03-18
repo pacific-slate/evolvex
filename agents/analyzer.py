@@ -31,7 +31,7 @@ class Analyzer(Agent):
                 {"role": "system", "content": _SYSTEM},
                 {"role": "user", "content": user_msg},
             ],
-            max_tokens=100,
+            max_completion_tokens=100,
             temperature=0.3,
         )
         return response.choices[0].message.content.strip()

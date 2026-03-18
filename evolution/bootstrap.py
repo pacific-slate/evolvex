@@ -50,6 +50,18 @@ def _fallback_step(error_message: str) -> dict:
     }
 
 
+def _is_fatal_peer_error(message: str) -> bool:
+    lowered = message.lower()
+    fatal_markers = (
+        "unsupported parameter",
+        "invalid_request_error",
+        "authenticationerror",
+        "insufficient_quota",
+        "model_not_found",
+    )
+    return any(marker in lowered for marker in fatal_markers)
+
+
 def _assessment(
     *,
     stage: BootstrapStage,
@@ -158,6 +170,7 @@ async def _peer_step_with_retries(
             )
             return step, errors
         except Exception as exc:
+            message = f"{type(exc).__name__}: {exc}"
             errors.append(
                 {
                     "event": "bootstrap_error",
@@ -166,10 +179,12 @@ async def _peer_step_with_retries(
                         "peer": peer.name,
                         "phase": role,
                         "attempt": attempt,
-                        "message": f"{type(exc).__name__}: {exc}",
+                        "message": message,
                     },
                 }
             )
+            if _is_fatal_peer_error(message):
+                break
             if attempt < _MAX_PEER_RETRIES:
                 await asyncio.sleep(2 ** (attempt - 1))
     return _fallback_step(errors[-1]["data"]["message"] if errors else "unknown error"), errors
@@ -291,6 +306,29 @@ async def run_bootstrap(
         for error_event in leader_errors:
             round_events.append(error_event)
             yield error_event
+        if leader_errors and _is_fatal_peer_error(leader_errors[-1]["data"]["message"]):
+            broker.save_checkpoint(
+                _checkpoint_state(
+                    broker=broker,
+                    protocol=protocol,
+                    peer_a=peer_a,
+                    peer_b=peer_b,
+                    stage_index=stage_index,
+                    round_num=max(rnd - 1, 0),
+                    target_rounds=rounds,
+                    round_events=round_events,
+                    completed=False,
+                    system_assessment=None,
+                )
+            )
+            yield {
+                "event": "bootstrap_stopped",
+                "data": {
+                    "round": rnd,
+                    "reason": leader_errors[-1]["data"]["message"],
+                },
+            }
+            return
         leader_message = {
             "event": "bootstrap_peer_message",
             "data": {
@@ -357,6 +395,29 @@ async def run_bootstrap(
         for error_event in reviewer_errors:
             round_events.append(error_event)
             yield error_event
+        if reviewer_errors and _is_fatal_peer_error(reviewer_errors[-1]["data"]["message"]):
+            broker.save_checkpoint(
+                _checkpoint_state(
+                    broker=broker,
+                    protocol=protocol,
+                    peer_a=peer_a,
+                    peer_b=peer_b,
+                    stage_index=stage_index,
+                    round_num=max(rnd - 1, 0),
+                    target_rounds=rounds,
+                    round_events=round_events,
+                    completed=False,
+                    system_assessment=None,
+                )
+            )
+            yield {
+                "event": "bootstrap_stopped",
+                "data": {
+                    "round": rnd,
+                    "reason": reviewer_errors[-1]["data"]["message"],
+                },
+            }
+            return
         reviewer_message = {
             "event": "bootstrap_peer_message",
             "data": {

@@ -37,7 +37,7 @@ async def _consolidate_vocabulary(
         response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_completion_tokens=200,
             temperature=0.3,
             response_format={"type": "json_object"},
         )

@@ -164,7 +164,7 @@ Latest peer message:
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=700,
+            max_completion_tokens=700,
             temperature=0.7,
             response_format={"type": "json_object"},
         )

@@ -41,7 +41,7 @@ class Modifier(Agent):
                 {"role": "system", "content": _SYSTEM},
                 {"role": "user", "content": user_msg},
             ],
-            max_tokens=300,
+            max_completion_tokens=300,
             temperature=0.2,
         )
         return response.choices[0].message.content.strip()

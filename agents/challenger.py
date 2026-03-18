@@ -77,7 +77,7 @@ class Challenger(Agent):
             response = await self._client.chat.completions.create(
                 model=model,
                 messages=[{"role": "system", "content": system}],
-                max_tokens=700,
+                max_completion_tokens=700,
                 temperature=0.7,
                 response_format={"type": "json_object"},
             )
@@ -100,7 +100,7 @@ class Challenger(Agent):
     async def propose_vocabulary(self, round_num: int, model: str) -> list[dict]:
         """
         Called when Challenger loses (Solver wins). Propose 1-3 new vocabulary tokens.
-        Uses a small LLM call (max_tokens=100). Returns list of {token, meaning} dicts.
+        Uses a small LLM call (max_completion_tokens=100). Returns list of {token, meaning} dicts.
         """
         if self._protocol is None:
             return []
@@ -113,7 +113,7 @@ class Challenger(Agent):
             response = await self._client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
+                max_completion_tokens=100,
                 temperature=0.8,
                 response_format={"type": "json_object"},
             )
