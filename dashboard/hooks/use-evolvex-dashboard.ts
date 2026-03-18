@@ -42,7 +42,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit): Promis
 
 export function useEvolvexDashboard() {
   const runtime = useMemo(() => getRuntimeConfig(), []);
-  const [mode, setMode] = useState<ModeKey>("classic");
+  const [mode, setMode] = useState<ModeKey>("bootstrap");
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
   const [modeRunning, setModeRunning] = useState<Record<ModeKey, boolean>>(EMPTY_RUNNING);
   const [connected, setConnected] = useState(false);

@@ -1,12 +1,12 @@
 import type { EventData, ModeDefinition, ModeKey, ModeTheme, StatusTone } from "./evolvex-types";
 
-export const MODE_ORDER: ModeKey[] = ["classic", "arena", "bootstrap", "genesis"];
+export const MODE_ORDER: ModeKey[] = ["bootstrap", "classic", "arena", "genesis"];
 
 export const SYSTEM_STORY_STEPS = [
-  "Define an experiment mode and launch it from one control surface.",
-  "Observe the live loop as the system mutates, competes, negotiates, or builds.",
-  "Capture the evidence stream: safety gates, protocol emergence, stage changes, and artifacts.",
-  "Compare autonomy regimes using the same workbench instead of four disconnected demos.",
+  "Problem: most agent demos hand over tools immediately, so real coordination stays invisible.",
+  "Build: Bootstrap starts two peers with messaging and scratch space, then unlocks stronger capabilities in stages.",
+  "Observe: watch protocol tokens, broker decisions, and artifacts appear in the live evidence stream.",
+  "Judge: decide whether the system is getting more coherent or just louder.",
 ];
 
 const MODE_THEMES: Record<ModeKey, ModeTheme> = {
@@ -106,24 +106,24 @@ export const MODE_DEFINITIONS: Record<ModeKey, ModeDefinition> = {
   bootstrap: {
     key: "bootstrap",
     label: "Bootstrap",
-    strapline: "Multi-agent autonomy with emergent protocol",
-    heroTitle: "Observe two peers invent coordination under constraints",
+    strapline: "Earned autonomy with emergent protocol",
+    heroTitle: "Watch two peers earn coordination before they touch real power",
     whatItIs:
-      "Bootstrap starts two peers with minimal priors, stage-gated capabilities, and a brokered toolchain. The workbench watches whether they can invent a shared language, coordinate around artifacts, and unlock autonomy.",
+      "Bootstrap starts two peers with messaging and scratch space only. From there they have to invent a shared language, ask a broker for capabilities, and prove they can coordinate before they get access to stronger tools.",
     whyItMatters:
-      "Bootstrap is the clearest demonstration that EvolveX can supervise agent societies, not just single loops. It captures protocol health, collaboration quality, artifact growth, and the cost of autonomy.",
+      "Bootstrap is the clearest proof that this project is a supervision tool, not just another agent demo. It makes coordination, capability growth, and operator evidence visible instead of asking you to trust the vibes.",
     captures: [
       "Protocol proposals, adoptions, pruning, and stable token growth.",
-      "Peer message flow, broker decisions, and tool audit trails.",
+      "Peer message flow, broker decisions, and stage-gated tool requests.",
       "Artifacts produced in the bootstrap workspace.",
       "Assessment scores for collaboration, language, traceability, and autonomy.",
     ],
     audiences: ["Infra teams", "Autonomy researchers", "Multi-agent product teams"],
     readyBrief: {
       eyebrow: "Ready To Run",
-      title: "Stand up a monitored autonomy lab",
+      title: "Kick off a staged autonomy run",
       summary:
-        "Bootstrap mode shows why EvolveX is a supervision tool. It reveals whether two peers can coordinate, what protocol they invent, and how safely they use capabilities as the curriculum expands.",
+        "Bootstrap is the hero mode for the turn-in. It shows whether two peers can get their act together, build shared structure, and earn more capability without the whole system turning into a black box.",
       bullets: [
         "Start with constrained capabilities and staged unlocks.",
         "Inspect the operating language as tokens become stable.",

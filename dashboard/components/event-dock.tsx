@@ -16,6 +16,7 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
     () => (scope === "current" ? dashboard.derived.currentTrace : dashboard.derived.allTrace),
     [dashboard.derived.allTrace, dashboard.derived.currentTrace, scope],
   );
+  const dockTitle = scope === "current" && dashboard.mode === "bootstrap" ? "Bootstrap evidence dock" : "The workbench narrative";
 
   useEffect(() => {
     if (!scrollerRef.current) return;
@@ -28,7 +29,7 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
   return (
     <Panel
       kicker="Live Trace Dock"
-      title="The workbench narrative"
+      title={dockTitle}
       actions={
         <div className="flex flex-wrap gap-2">
           <button
@@ -60,8 +61,8 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
         <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
           <SectionEyebrow>Why this is a tool</SectionEyebrow>
           <p className="mt-3 text-sm leading-7 text-white/72">
-            EvolveX is not just showing an agent run. It is recording the operator evidence needed to supervise autonomy:
-            mutation safety, protocol formation, artifact growth, stage progression, and cost.
+            This is not here to dump raw events. It turns agent activity into operator evidence: protocol formation,
+            broker decisions, artifact growth, stage progression, and cost.
           </p>
           <div className="mt-5 space-y-3">
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
@@ -82,7 +83,8 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
                 <SectionEyebrow>Ready To Observe</SectionEyebrow>
                 <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white">Start any experiment to turn the dock into a narrated evidence stream.</h3>
                 <p className="mt-4 text-sm leading-7 text-white/60">
-                  The dock turns backend payloads into readable operational signals. Instead of raw JSON, judges see what changed, why it matters, and which mode produced it.
+                  The dock turns backend payloads into readable operational signals. Instead of raw JSON, judges see what
+                  changed, why it matters, and which mode produced it.
                 </p>
               </div>
             </div>

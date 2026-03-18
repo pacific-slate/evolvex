@@ -1,14 +1,24 @@
 # EvolveX
 
-EvolveX is an agent evolution workbench: a control room for launching, supervising, and comparing autonomous improvement experiments. Instead of showing "an agent that runs a lot," it makes the operating evidence visible: safety gates, protocol emergence, artifacts, cost, and behavior change over time.
+EvolveX is an agent evolution workbench, but the turn-in story is `Bootstrap`: a mode where two peer agents start with messaging and scratch space only, then have to earn stronger capability as they form a shared protocol, produce artifacts, and survive review.
 
 Built for the EvolveX Hackathon with a FastAPI backend, a Next.js dashboard, and OpenAI-powered agents.
 
 ## Product Thesis
 
-EvolveX treats agent evolution as an operator problem, not just a prompt problem. The system gives researchers, infra teams, and agent builders one surface for running four autonomy regimes and understanding what changed, why it changed, and whether it should be trusted.
+Most agent demos get tools immediately and ask you to trust the rest. EvolveX treats autonomy as an operator problem instead: the system captures protocol emergence, stage-gated capability unlocks, broker decisions, artifacts, and cost so you can inspect what really happened.
 
-## Experiment Types
+## Hero Mode: Bootstrap
+
+`Bootstrap` is the product surface to demo.
+
+- Two peer agents begin with messaging and scratch space only.
+- A broker gates every capability request.
+- A stage curriculum unlocks stronger tools over time.
+- A protocol layer tracks whether invented tokens are merely proposed, adopted by the other peer, or stable through repeated use.
+- The dashboard turns all of that into a readable evidence stream instead of a wall of raw events.
+
+## Supporting Regimes
 
 ### Classic
 
@@ -44,10 +54,10 @@ Autonomous builder.
 
 ## Why This Is A Tool
 
-- It unifies multiple autonomy/evolution regimes behind one operator surface.
-- It makes safety visible through checkpointing, sandbox validation, and rollback.
+- It makes autonomy observable instead of magical.
 - It captures evidence instead of hiding behavior behind a final answer.
-- It is useful even when idle because the dashboard explains what each experiment proves and what evidence will appear when it runs.
+- It gives Bootstrap a clear supervision story: shared language, earned capability, and inspectable artifacts.
+- The other modes exist as comparison points, not as the main pitch.
 
 ## Safety Model
 

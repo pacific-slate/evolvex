@@ -6,6 +6,16 @@ import type { EvolvexDashboardController } from "@/hooks/use-evolvex-dashboard";
 
 import { Panel, StatusPill } from "./workbench-shell";
 
+const BOOTSTRAP_STAGE_LABELS = [
+  { id: 0, name: "Handshake", detail: "Start with messaging and scratch space. No real power yet." },
+  { id: 1, name: "Artifacts", detail: "Turn coordination into durable files and explicit protocol." },
+  { id: 2, name: "Context", detail: "Anchor reasoning to the actual repo instead of pure vibes." },
+  { id: 3, name: "Build", detail: "Unlock execution and test creation once the peers earn it." },
+  { id: 4, name: "Verify", detail: "Unlock shell and stronger verification criteria." },
+  { id: 5, name: "Research", detail: "Unlock web retrieval and outside references." },
+  { id: 6, name: "Integration", detail: "Stabilize the protocol and tie the work together." },
+] as const;
+
 function CompressionSparkline({ history }: { history: { compression_ratio: number }[] }) {
   if (history.length < 2) {
     return <span className="text-sm text-white/40">No compression history yet</span>;
@@ -357,10 +367,95 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
   const { bootstrapStatus, bootstrapProtocol, bootstrapArtifacts, bootstrapPeers } = dashboard.data;
   const { bootstrapRounds } = dashboard.controls;
   const running = dashboard.data.modeRunning.bootstrap;
+  const bootstrapProgress = bootstrapStatus?.target_rounds
+    ? Math.min(100, Math.round(((bootstrapStatus.round ?? 0) / bootstrapStatus.target_rounds) * 100))
+    : 0;
+  const tokenBreakdown = (bootstrapProtocol?.vocabulary ?? []).reduce(
+    (acc, entry) => {
+      acc[entry.state] += 1;
+      return acc;
+    },
+    { pending: 0, adopted: 0, stable: 0 },
+  );
+  const latestCompression = bootstrapProtocol?.round_history.at(-1)?.compression_ratio ?? null;
 
   return (
     <>
-      <ModeBrief dashboard={dashboard} />
+      <Panel kicker="Hero Run" title="A staged autonomy experiment with receipts" className={theme.panel}>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+          <div className="space-y-5">
+            <p className="text-sm leading-7 text-white/72">
+              Bootstrap is the one to demo. Two peer agents begin with messaging and scratch space only, then have to
+              earn files, repo access, execution, shell, and research by coordinating well enough to move up the ladder.
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-white/55">
+              <StatusPill tone={running ? "active" : bootstrapStatus?.completed ? "success" : "idle"}>
+                {running ? "Bootstrap live" : bootstrapStatus?.completed ? "Completed run" : "Ready to run"}
+              </StatusPill>
+              {bootstrapStatus?.resumable && !running ? <StatusPill tone="warning">Resume available</StatusPill> : null}
+              <span className="signal-pill border-white/10 bg-white/5 text-white/65">
+                Round {bootstrapStatus?.round ?? 0}
+                {bootstrapStatus?.target_rounds ? ` / ${bootstrapStatus.target_rounds}` : ""}
+              </span>
+              <span className="signal-pill border-white/10 bg-white/5 text-white/65">
+                Cost {formatCurrency(bootstrapStatus?.run_cost_usd ?? 0)}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/8">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 transition-all duration-500"
+                style={{ width: `${bootstrapProgress}%` }}
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {BOOTSTRAP_STAGE_LABELS.map((stage) => {
+                const state =
+                  stage.id < (bootstrapStatus?.stage_id ?? 0)
+                    ? "complete"
+                    : stage.id === (bootstrapStatus?.stage_id ?? 0)
+                      ? "current"
+                      : "upcoming";
+                return (
+                  <div
+                    key={stage.name}
+                    className={`rounded-3xl border p-4 ${
+                      state === "complete"
+                        ? "border-emerald-300/20 bg-emerald-300/10"
+                        : state === "current"
+                          ? "border-sky-300/20 bg-sky-300/10"
+                          : "border-white/8 bg-black/20"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-white">{stage.name}</p>
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">{stage.id}</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-white/58">{stage.detail}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
+            <p className="section-eyebrow">What To Watch</p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-white">1. Shared protocol shows up</p>
+                <p className="mt-1 text-sm leading-6 text-white/58">Tokens appear, get adopted by the other peer, and only become stable after repeated use.</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">2. Capability has to be earned</p>
+                <p className="mt-1 text-sm leading-6 text-white/58">The broker only unlocks stronger tools when the current stage criteria are met.</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">3. Coordination leaves evidence</p>
+                <p className="mt-1 text-sm leading-6 text-white/58">Artifacts, broker decisions, and assessments stick around after the run instead of disappearing into the model haze.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel kicker="Run Controls" title="Bootstrap autonomy run" className={theme.panel}>
@@ -368,7 +463,7 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
             <NumberField label="Rounds" value={bootstrapRounds} min={1} max={50} onChange={dashboard.controls.setBootstrapRounds} />
             <div className="flex flex-wrap gap-3">
               <PrimaryButton className={theme.button} disabled={running} onClick={dashboard.actions.startBootstrap}>
-                {running ? "Bootstrap Live" : "Start Bootstrap"}
+                {running ? "Bootstrap Live" : bootstrapStatus?.resumable ? "Resume Bootstrap" : "Start Bootstrap"}
               </PrimaryButton>
               {running ? <SecondaryButton onClick={dashboard.actions.stopBootstrap}>Stop Run</SecondaryButton> : null}
               <SecondaryButton disabled={running} onClick={dashboard.actions.resetBootstrap} className={theme.buttonMuted}>
@@ -378,12 +473,29 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
             </div>
           </div>
           <p className="mt-4 text-sm leading-7 text-white/55">
-            Bootstrap turns the dashboard into a monitored autonomy lab: you can watch capability unlocks, broker decisions, protocol adoption, and artifact growth without asking the backend for anything new.
+            Bootstrap turns the dashboard into a monitored autonomy lab. You can watch capability unlocks, broker decisions,
+            protocol adoption, and artifact growth without asking the backend for anything new.
           </p>
         </Panel>
 
         <Panel kicker="Live Objective" title={bootstrapStatus?.stage ?? "Bootstrap handshake"}>
           <p className="text-sm leading-7 text-white/72">{bootstrapStatus?.objective ?? "Waiting for the broker to assign a live objective."}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="section-eyebrow">Stable Tokens</p>
+              <p className="mt-2 text-2xl font-semibold text-emerald-100">{tokenBreakdown.stable}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="section-eyebrow">Adopted Tokens</p>
+              <p className="mt-2 text-2xl font-semibold text-sky-100">{tokenBreakdown.adopted}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="section-eyebrow">Compression</p>
+              <p className="mt-2 text-2xl font-semibold text-cyan-100">
+                {latestCompression === null ? "—" : formatPercent(latestCompression)}
+              </p>
+            </div>
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {(bootstrapStatus?.unlocked_capabilities ?? []).map((capability) => (
               <span key={capability} className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-sky-100">
@@ -427,6 +539,20 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <Panel kicker="Operating Language" title="Token adoption, stability, and meaning">
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="section-eyebrow">Pending</p>
+              <p className="mt-2 text-xl font-semibold text-white">{tokenBreakdown.pending}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="section-eyebrow">Adopted</p>
+              <p className="mt-2 text-xl font-semibold text-sky-100">{tokenBreakdown.adopted}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="section-eyebrow">Stable</p>
+              <p className="mt-2 text-xl font-semibold text-emerald-100">{tokenBreakdown.stable}</p>
+            </div>
+          </div>
           {bootstrapProtocol?.vocabulary.length ? (
             <div className="grid gap-3 md:grid-cols-2">
               {bootstrapProtocol.vocabulary.map((entry) => (
