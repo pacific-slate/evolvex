@@ -1,14 +1,14 @@
 # EvolveX Dashboard
 
-This app is the submission-grade frontend for the EvolveX workbench. For turn-in purposes, it is intentionally centered on `Bootstrap`: the staged multi-agent coordination mode with brokered capability unlocks and visible protocol formation.
+This app is the operator workspace for the persistent EvolveX growth session. It is designed to show one active agent-construction process at a time, with durable state, tangible outputs, scorecard progression, and archived lineage.
 
 ## What The Frontend Does
 
-- Positions the app as a Bootstrap-first agent workbench
-- Presents Classic, Arena, and Genesis as supporting experiment regimes
-- Normalizes inconsistent backend payloads into readable UI state
-- Keeps the live event stream readable by formatting traces instead of dumping raw JSON
-- Explains the product even when no run is active
+- Renders one active growth session as the primary product surface
+- Shows the lifecycle path, unlocked capabilities, budget/storage envelope, and current objective
+- Keeps artifacts, checkpoints, scorecard history, and event evidence visible without page scrolling
+- Surfaces archive lineage so completed or reset sessions remain inspectable
+- Uses the growth-session payload as the main UI contract
 
 ## Local Development
 
@@ -44,23 +44,24 @@ npm run build
 - `app/page.tsx`: thin composition layer for the workbench
 - `app/layout.tsx`: metadata and font setup
 - `app/globals.css`: global visual system and shell styling
-- `hooks/use-evolvex-dashboard.ts`: API, WebSocket, actions, and derived state
+- `hooks/use-growth-session.ts`: unified growth-session API, WebSocket refresh, and operator actions
+- `lib/growth-types.ts`: persistent growth-session frontend contract types
+- `components/growth-workspace.tsx`: single-session operator workspace
+- `hooks/use-evolvex-dashboard.ts`: legacy mode-oriented hook retained for compatibility/reference
 - `lib/evolvex-types.ts`: shared frontend contract types
 - `lib/runtime.ts`: runtime API/WS resolution
 - `lib/evolvex-format.ts`: mode copy, themes, and human-readable trace formatting
 - `lib/evolvex-normalize.ts`: overview, inspector, rail-card, and trace derivation helpers
-- `components/workbench-shell.tsx`: hero, rail, inspector, and layout shell
-- `components/mode-sections.tsx`: mode-driven evidence panels and controls
-- `components/event-dock.tsx`: persistent trace dock
+- `components/workbench-shell.tsx`, `components/mode-sections.tsx`, `components/event-dock.tsx`: legacy mode-era shell components kept in repo while the growth workspace becomes primary
 
 ## Data Contract Notes
 
-The frontend intentionally builds on the current backend contract rather than waiting for new APIs.
+The frontend now prefers the unified growth-session contract:
 
-- Classic uses generic event names like `started` and `complete`, so the frontend tags them as Classic activity.
-- Genesis exposes `running: boolean` while other modes use `status` strings; the hook normalizes that into shared run-state.
-- Arena and Bootstrap protocol payloads differ slightly, so the UI formats them into a common evidence story.
-- Several mode summaries are derived client-side from recent events because the snapshot endpoints are intentionally incomplete for in-flight progress.
+- `GET /api/growth/session` provides the active session, artifact registry, checkpoints, recent events, and scorecard history.
+- Growth actions use `POST /api/growth/session/start|pause|resume|reset|archive`.
+- WebSocket updates still arrive over `/ws/evolution`, but the UI treats them as refresh triggers for persisted session state.
+- Legacy mode endpoints remain available, but they are no longer the primary dashboard contract.
 
 ## Test Coverage
 

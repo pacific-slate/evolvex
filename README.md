@@ -1,24 +1,31 @@
 # EvolveX
 
-EvolveX is an agent evolution workbench, but the turn-in story is `Bootstrap`: a mode where two peer agents start with messaging and scratch space only, then have to earn stronger capability as they form a shared protocol, produce artifacts, and survive review.
+EvolveX is a persistent agent growth environment. The system runs one long-lived growth session at a time, continuously building and improving a single agent under budget, storage, and capability gates while preserving checkpoints, artifacts, and archived lineage.
 
-Built for the EvolveX Hackathon with a FastAPI backend, a Next.js dashboard, and OpenAI-powered agents.
+Built with a FastAPI backend, a Next.js operator workspace, and OpenAI-powered agent workers.
 
 ## Product Thesis
 
-Most agent demos get tools immediately and ask you to trust the rest. EvolveX treats autonomy as an operator problem instead: the system captures protocol emergence, stage-gated capability unlocks, broker decisions, artifacts, and cost so you can inspect what really happened.
+Most agent systems expose short runs and hide the real developmental process. EvolveX treats agent construction as a durable operating environment instead: the system captures phase progression, capability unlocks, checkpoints, artifacts, scorecards, and archive bundles so you can leave, return, and continue the same growth process.
 
-## Hero Mode: Bootstrap
+## Persistent Growth Session
 
-`Bootstrap` is the product surface to demo.
+The primary product surface is the growth session.
 
-- Two peer agents begin with messaging and scratch space only.
-- A broker gates every capability request.
-- A stage curriculum unlocks stronger tools over time.
-- A protocol layer tracks whether invented tokens are merely proposed, adopted by the other peer, or stable through repeated use.
-- The dashboard turns all of that into a readable evidence stream instead of a wall of raw events.
+- One active growth session exists at a time.
+- The overseer is a governor, not a co-builder.
+- Bootstrap and Genesis now operate as internal workers inside the same lifecycle.
+- Capability unlocks are stage-gated and persisted.
+- Tangible outputs are first-class: runnable agent files, checkpoint records, artifact registry, evaluation state, and archived lineage.
 
-## Supporting Regimes
+The session runs until:
+
+- the user pauses it,
+- the overseer resets or archives it,
+- budget or storage policy caps it,
+- or the weighted scorecard sustains the completion threshold.
+
+## Internal Regimes
 
 ### Classic
 
@@ -40,8 +47,8 @@ Adversarial challenge ladder.
 
 Multi-agent autonomy with emergent protocol.
 
-- What it does: two peers start with minimal priors, brokered tools, and staged capability unlocks, then try to coordinate and invent an operating language.
-- Why it matters: demonstrates supervision of agent societies, not just single loops.
+- What it does: two peers start with minimal priors, brokered tools, and staged capability unlocks, then coordinate and invent an operating language.
+- Why it matters: supplies the early self-formation phases of the persistent growth session.
 - What EvolveX captures: protocol proposals/adoption, peer messages, broker decisions, artifacts, cost, and collaboration/autonomy assessments.
 
 ### Genesis
@@ -49,23 +56,25 @@ Multi-agent autonomy with emergent protocol.
 Autonomous builder.
 
 - What it does: a single agent researches, plans, uses tools, edits files, and self-assesses while constructing outputs in a workspace.
-- Why it matters: turns opaque builder behavior into a readable operational trace.
+- Why it matters: supplies the later self-improvement phases of the persistent growth session.
 - What EvolveX captures: phase changes, tool calls/results, file mutations, recent narrative, cost, and capability scores.
 
-## Why This Is A Tool
+## Growth Runtime
 
-- It makes autonomy observable instead of magical.
-- It captures evidence instead of hiding behavior behind a final answer.
-- It gives Bootstrap a clear supervision story: shared language, earned capability, and inspectable artifacts.
-- The other modes exist as comparison points, not as the main pitch.
+The active session now has a durable control plane:
+
+- SQLite stores session state, events, checkpoints, artifact records, scorecard history, and archive metadata.
+- Filesystem storage holds the active workspaces and archived session bundles.
+- The API restores the active session on restart and resumes the growth loop when needed.
+- Bootstrap checkpoints and Genesis checkpoints are both surfaced through one growth-session contract.
 
 ## Safety Model
 
 - Mutations never apply directly without sandbox validation.
 - Every mutation path checkpoints state before modification.
-- Failed or degraded changes can be discarded or rolled back.
-- Fitness remains the decision signal in the classic loop.
-- The dashboard consumes the same REST and WebSocket surfaces the backend uses as its source of truth.
+- The overseer can gate or withhold tool access, but does not write artifacts itself.
+- Failed or degraded changes can be discarded, paused, archived, or reset.
+- The operator workspace consumes the same persisted session surfaces the backend uses as its source of truth.
 
 ## Architecture
 
@@ -95,8 +104,8 @@ Builder agent -> research, implementation, tool use, self-assessment
 Workspace     -> file outputs and recent build narrative
 
 Shared platform
-FastAPI API   -> control endpoints + shared WebSocket event stream
-Next.js UI    -> workbench, inspector panels, and live trace dock
+FastAPI API   -> mode endpoints plus unified growth-session control plane
+Next.js UI    -> single-session operator workspace
 ```
 
 ## Quick Start
@@ -124,21 +133,38 @@ npm run dev
 # -> http://localhost:3000
 ```
 
+## API Surface
+
+The persistent growth session is exposed through:
+
+```bash
+POST /api/growth/session/start
+POST /api/growth/session/pause
+POST /api/growth/session/resume
+POST /api/growth/session/reset
+POST /api/growth/session/archive
+GET  /api/growth/session
+GET  /api/growth/session/artifacts
+GET  /api/growth/session/scorecard
+GET  /api/growth/session/constraints
+GET  /api/growth/session/checkpoints
+GET  /api/growth/session/events
+GET  /api/growth/archive
+GET  /api/growth/archive/{session_id}
+```
+
+Legacy Classic, Arena, Bootstrap, and Genesis endpoints remain available as internal regimes and compatibility surfaces.
+
 ## Dashboard
 
-The dashboard is positioned as a workbench rather than a generic dev console.
+The frontend is now a single-session operator workspace.
 
-- Above the fold: product thesis, run-readiness, and workflow strip
-- Left rail: the four experiment types as operator-facing modes
-- Center canvas: mode-specific controls and evidence panels
-- Right inspector: why it matters, what gets captured, and live snapshot details
-- Bottom dock: a human-readable live trace derived from the shared WebSocket feed
+- Top strip: live session identity, status, budget, storage, and current objective
+- Left rail: lifecycle path plus control envelope
+- Center canvas: mindstate, artifacts, scorecard, and event evidence
+- Right inspector: outputs, checkpoint recovery, and archived lineage
 
-The frontend uses the current backend contract as-is:
-
-- REST: classic, arena, bootstrap, and genesis start/stop/reset/status endpoints
-- WebSocket: `/ws/evolution`
-- Supporting status views: protocol, artifacts, workspace, and recent narrative endpoints
+The workspace consumes the unified growth-session payload first and treats the old mode-specific endpoints as supporting infrastructure.
 
 ## Supporting Services
 
@@ -163,7 +189,7 @@ GET  /api/housekeeping/supervisor/status
 GET  /api/housekeeping/supervisor/report
 ```
 
-The submission-grade workbench remains centered on the four experiment types above.
+The growth session is the product. Housekeeping remains a secondary repo stewardship surface.
 
 ## Split Deployment
 
@@ -175,6 +201,7 @@ Frontend and backend can be deployed independently.
 
 ```bash
 ./scripts/deploy_frontend.sh
+EVOLVEX_FRONTEND_BRANCH=codex/app ./scripts/deploy_frontend.sh
 ./scripts/deploy_backend.sh
 ```
 

@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-03-18
+
+- Reframed the task from UI cleanup to product-runtime migration.
+- Confirmed the target product model: one persistent growth session, one active run at a time, SQLite + filesystem persistence, passive overseer, scorecard-based unlocks, and durable archived lineage.
+- Began implementation sequencing around backend control-plane changes before frontend adaptation.
+- Added `evolution/growth_session.py` as the durable control-plane for active session state, events, artifacts, checkpoints, scorecards, and archives.
+- Updated `evolution/bootstrap.py` and `evolution/genesis.py` so both can run as resumable chunks under the growth-session controller.
+- Extended `api.py` with unified growth-session endpoints, restart-safe bootstrap/genesis status helpers, and a single background growth loop.
+- Replaced the dashboard entrypoint with a single-session growth workspace driven by `/api/growth/session`.
+- Added `tests/test_growth_session.py` and verified backend + frontend regression checks.
+
 ## 2026-03-17
 
 - Created persistent planning files for the housekeeping/factory build.

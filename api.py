@@ -55,9 +55,11 @@ from evolution.bootstrap import run_bootstrap
 from evolution.bootstrap_broker import BootstrapBroker
 from evolution.bootstrap_curriculum import BOOTSTRAP_STAGES
 from evolution.bootstrap_protocol import BootstrapProtocol
+from evolution.bootstrap_sandbox import BOOTSTRAP_WORKSPACE
 from evolution.genesis import run_genesis
 from evolution.genesis_sandbox import WORKSPACE_ROOT, ensure_workspace
 from evolution.genesis_tools import TOOL_DEFINITIONS
+from evolution import growth_session
 from evolution.housekeeping import collect_housekeeping_snapshot, run_housekeeping
 from evolution.housekeeping_supervisor import plan_supervisor_actions, run_housekeeping_supervisor
 from evolution.protocol import Protocol
@@ -106,6 +108,9 @@ _genesis_status: dict = {
     "files_created": [],
     "last_assessment": None,
 }
+_growth_running = False
+_growth_stop_flag: list[bool] = [False]
+_growth_task: asyncio.Task | None = None
 _housekeeping_running = False
 _housekeeping_stop_flag: list[bool] = [False]
 _housekeeping_status: dict = {
@@ -240,6 +245,326 @@ def restore_bootstrap_from_checkpoint() -> None:
             "completed": bool(checkpoint.get("completed", False)),
         }
     )
+
+
+def reset_genesis_status() -> None:
+    global _genesis_status
+    _genesis_status = {
+        "phase": "IDLE",
+        "iteration": 0,
+        "total_cost_usd": 0.0,
+        "pricing_known": True,
+        "files_created": [],
+        "last_assessment": None,
+    }
+
+
+def update_genesis_status(event: dict) -> None:
+    global _genesis_status
+    ev = event.get("event", "")
+    data = event.get("data", {})
+    if ev == "genesis_started":
+        _genesis_status["phase"] = "RESEARCH"
+    elif ev == "genesis_phase_change":
+        _genesis_status["phase"] = data.get("new_phase", _genesis_status["phase"])
+    elif ev == "genesis_tool_call":
+        _genesis_status["iteration"] = max(int(data.get("iteration", 0)), _genesis_status["iteration"])
+    elif ev == "genesis_token_usage":
+        _genesis_status["total_cost_usd"] = data.get("total_cost_usd", _genesis_status["total_cost_usd"])
+        _genesis_status["pricing_known"] = data.get("pricing_known", _genesis_status["pricing_known"])
+    elif ev == "genesis_assessment":
+        _genesis_status["last_assessment"] = data.get("scores", data)
+    elif ev == "genesis_file_changed":
+        path = data.get("path")
+        if path and path not in _genesis_status["files_created"]:
+            _genesis_status["files_created"].append(path)
+    elif ev == "genesis_chunk_complete":
+        _genesis_status["iteration"] += int(data.get("iterations_completed", 0))
+        _genesis_status["phase"] = data.get("phase", _genesis_status["phase"])
+        _genesis_status["total_cost_usd"] = data.get("total_cost_usd", _genesis_status["total_cost_usd"])
+        _genesis_status["pricing_known"] = data.get("pricing_known", _genesis_status["pricing_known"])
+    elif ev == "genesis_complete":
+        _genesis_status["files_created"] = data.get("files_created", _genesis_status["files_created"])
+        _genesis_status["phase"] = "COMPLETE"
+        _genesis_status["last_assessment"] = data.get("final_assessment", _genesis_status["last_assessment"])
+        _genesis_status["total_cost_usd"] = data.get("total_cost_usd", _genesis_status["total_cost_usd"])
+        _genesis_status["pricing_known"] = data.get("pricing_known", _genesis_status["pricing_known"])
+    elif ev == "genesis_reset":
+        reset_genesis_status()
+
+
+def list_genesis_workspace_files() -> list[dict]:
+    if not WORKSPACE_ROOT.exists():
+        return []
+    files = []
+    for path in sorted(WORKSPACE_ROOT.rglob("*")):
+        if path.is_file() and not path.name.startswith("_genesis"):
+            rel = str(path.relative_to(WORKSPACE_ROOT))
+            files.append({"path": rel, "size_bytes": path.stat().st_size})
+    return files
+
+
+def growth_allowed_genesis_tools(unlock_state: dict) -> set[str]:
+    granted = set(unlock_state.get("granted_capabilities", []))
+    mapping = {
+        "write_file": "write_file",
+        "read_file": "read_file",
+        "list_directory": "list_directory",
+        "execute_python": "execute_python",
+        "create_test": "create_test",
+        "self_assess": "self_assess",
+        "run_shell": "run_shell",
+        "web_search": "web_search",
+        "http_get": "http_get",
+        "install_package": "install_package",
+    }
+    allowed = {tool for capability, tool in mapping.items() if capability in granted}
+    if "write_file" in granted:
+        allowed.update({"read_file", "list_directory"})
+    return allowed
+
+
+def growth_ready_for_self_improve() -> bool:
+    assessment = _bootstrap_status.get("assessment") or {}
+    stable_tokens = bootstrap_protocol.stable_count() if bootstrap_protocol else 0
+    return (
+        int(_bootstrap_status.get("stage_id", 0)) >= len(BOOTSTRAP_STAGES) - 1
+        and stable_tokens >= 3
+        and int(assessment.get("overall", 0) or 0) >= 70
+    )
+
+
+def growth_unlock_state(active_phase: str) -> dict:
+    granted = list(_bootstrap_status.get("unlocked_capabilities", []))
+    stage_id = int(_bootstrap_status.get("stage_id", 0))
+    next_gate = (
+        "complete"
+        if active_phase == "self_improve"
+        else growth_session.phase_from_bootstrap_stage(stage_id + 1, "self_improve")
+    )
+    return {
+        "stage_id": stage_id,
+        "stage": active_phase,
+        "granted_capabilities": granted,
+        "next_gate": next_gate,
+    }
+
+
+def growth_checkpoint_snapshot() -> list[dict]:
+    checkpoints = []
+    if bootstrap_broker is not None:
+        path = bootstrap_broker.checkpoint_path()
+        checkpoints.append({"scope": "bootstrap", "path": str(path), "exists": path.exists()})
+    checkpoints.append(
+        {
+            "scope": "genesis",
+            "path": str(WORKSPACE_ROOT / ".checkpoint.json"),
+            "exists": (WORKSPACE_ROOT / ".checkpoint.json").exists(),
+        }
+    )
+    return checkpoints
+
+
+def sync_growth_session_state(session_id: str, *, phase_override: str | None = None) -> dict:
+    session = growth_session.get_session(session_id)
+    if session is None:
+        raise RuntimeError(f"Unknown growth session: {session_id}")
+    bootstrap_files = bootstrap_broker.list_artifacts() if bootstrap_broker is not None else []
+    genesis_files = list_genesis_workspace_files()
+    growth_session.replace_artifacts(session_id, "bootstrap", str(BOOTSTRAP_WORKSPACE), bootstrap_files)
+    growth_session.replace_artifacts(session_id, "genesis", str(WORKSPACE_ROOT), genesis_files)
+    artifacts = growth_session.list_session_artifacts(session_id)
+    checkpoints = growth_session.replace_checkpoints(session_id, growth_checkpoint_snapshot())
+    storage_used = growth_session.sum_artifact_bytes(artifacts)
+    current_phase = phase_override or (
+        "self_improve"
+        if growth_ready_for_self_improve()
+        else growth_session.phase_from_bootstrap_stage(int(_bootstrap_status.get("stage_id", 0)))
+    )
+    recent_events = growth_session.list_recent_session_events(session_id, limit=60)
+    scorecard = growth_session.compute_scorecard(
+        budget_used_usd=float(_genesis_status.get("total_cost_usd", 0.0))
+        + float((bootstrap_peer_a.total_cost_usd if bootstrap_peer_a else 0.0) + (bootstrap_peer_b.total_cost_usd if bootstrap_peer_b else 0.0)),
+        budget_cap_usd=session["budget"]["cap_usd"],
+        storage_used_bytes=storage_used,
+        storage_cap_bytes=session["storage"]["cap_bytes"],
+        bootstrap_assessment=_bootstrap_status.get("assessment"),
+        bootstrap_stage_id=int(_bootstrap_status.get("stage_id", 0)),
+        bootstrap_protocol=bootstrap_protocol.to_dict() if bootstrap_protocol else {},
+        genesis_assessment=_genesis_status.get("last_assessment"),
+        artifact_records=artifacts,
+        recent_events=recent_events,
+        stall_count=int(session.get("stall_count", 0)),
+    )
+    outputs = growth_session.detect_outputs(artifacts, checkpoints)
+    objective = (
+        _bootstrap_status.get("objective")
+        if current_phase != "self_improve"
+        else "Build, verify, and recursively improve the agent package until the target score sustains."
+    )
+    summary = {
+        "latest_signal": recent_events[-1]["event"] if recent_events else None,
+        "stable_tokens": bootstrap_protocol.stable_count() if bootstrap_protocol else 0,
+        "bootstrap_stage": _bootstrap_status.get("stage"),
+        "genesis_phase": _genesis_status.get("phase"),
+        "artifact_count": len(artifacts),
+    }
+    updated = growth_session.update_session(
+        session_id,
+        phase=current_phase,
+        current_objective=objective,
+        budget_used_usd=float(_genesis_status.get("total_cost_usd", 0.0))
+        + float((bootstrap_peer_a.total_cost_usd if bootstrap_peer_a else 0.0) + (bootstrap_peer_b.total_cost_usd if bootstrap_peer_b else 0.0)),
+        storage_used_bytes=storage_used,
+        bootstrap_round=int(_bootstrap_status.get("round", 0)),
+        genesis_iterations=int(_genesis_status.get("iteration", 0)),
+        scorecard=scorecard,
+        unlock_state=growth_unlock_state(current_phase),
+        outputs=outputs,
+        summary=summary,
+    )
+    growth_session.append_scorecard_snapshot(session_id, scorecard)
+    return updated
+
+
+async def broadcast_growth_event(session_id: str, event_name: str, data: dict, *, source: str = "growth") -> None:
+    growth_session.log_session_event(session_id, event_name, data, source=source)
+    await broadcast({"event": event_name, "data": data, "source": source})
+
+
+async def capture_worker_event(session_id: str, event: dict, *, source: str) -> None:
+    growth_session.log_session_event(session_id, event.get("event", "unknown"), event.get("data", {}), source=source)
+    await broadcast({**event, "source": source})
+
+
+async def reset_growth_runtime_surfaces() -> None:
+    global bootstrap_peer_a, bootstrap_peer_b, bootstrap_broker, bootstrap_protocol
+    global _bootstrap_running, _bootstrap_stop_flag, _growth_running, _growth_stop_flag
+    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    model = require_openai_model()
+    bootstrap_peer_a = BootstrapPeer("Peer A", client)
+    bootstrap_peer_b = BootstrapPeer("Peer B", client)
+    bootstrap_peer_a._model = model  # type: ignore[attr-defined]
+    bootstrap_peer_b._model = model  # type: ignore[attr-defined]
+    bootstrap_broker = BootstrapBroker()
+    bootstrap_broker.reset()
+    bootstrap_protocol = BootstrapProtocol()
+    reset_bootstrap_status()
+    reset_genesis_status()
+    _bootstrap_running = False
+    _bootstrap_stop_flag = [False]
+    _growth_running = False
+    _growth_stop_flag = [False]
+    import shutil
+    if WORKSPACE_ROOT.exists():
+        shutil.rmtree(WORKSPACE_ROOT)
+    ensure_workspace()
+
+
+async def run_growth_session_loop(session_id: str) -> None:
+    global _bootstrap_running, _genesis_running, _growth_running, _growth_stop_flag
+    model = require_openai_model()
+    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    session = growth_session.update_session(session_id, status="running")
+    await broadcast_growth_event(session_id, "growth_session_started", {"session_id": session_id, "phase": session["phase"]})
+    _growth_running = True
+    _growth_stop_flag = [False]
+    try:
+        while True:
+            session = growth_session.get_active_session()
+            if session is None or session["session_id"] != session_id:
+                return
+            if _growth_stop_flag[0]:
+                growth_session.update_session(session_id, status="paused")
+                await broadcast_growth_event(session_id, "growth_session_paused", {"session_id": session_id, "phase": session["phase"]})
+                return
+
+            if session["phase"] != "self_improve":
+                _bootstrap_running = True
+                next_rounds = max(int(session.get("bootstrap_round", 0)), int(_bootstrap_status.get("round", 0))) + growth_session.DEFAULT_BOOTSTRAP_CHUNK_ROUNDS
+                async for event in run_bootstrap(  # type: ignore[arg-type]
+                    bootstrap_peer_a,
+                    bootstrap_peer_b,
+                    next_rounds,
+                    model=model,
+                    broker=bootstrap_broker,
+                    protocol=bootstrap_protocol,
+                    stop_flag=_growth_stop_flag,
+                    continuous=True,
+                ):
+                    update_bootstrap_status(event)
+                    await capture_worker_event(session_id, event, source="bootstrap")
+                _bootstrap_running = False
+                session = sync_growth_session_state(session_id)
+                await broadcast_growth_event(session_id, "growth_scorecard_updated", {"session_id": session_id, "scorecard": session["scorecard"]})
+                await broadcast_growth_event(session_id, "growth_checkpoint_saved", {"session_id": session_id, "checkpoints": growth_session.list_checkpoints(session_id)})
+                if growth_ready_for_self_improve():
+                    session = growth_session.update_session(
+                        session_id,
+                        phase="self_improve",
+                        current_objective="Build, verify, and recursively improve the agent package until the target score sustains.",
+                        unlock_state=growth_unlock_state("self_improve"),
+                    )
+                    await broadcast_growth_event(
+                        session_id,
+                        "growth_phase_changed",
+                        {"session_id": session_id, "phase": "self_improve", "unlocked_capabilities": session["unlock_state"]["granted_capabilities"]},
+                    )
+                await asyncio.sleep(0)
+                continue
+
+            _genesis_running = True
+            allowed_tools = growth_allowed_genesis_tools(session["unlock_state"])
+            async for event in run_genesis(
+                client=client,
+                model=model,
+                max_iterations=growth_session.DEFAULT_GENESIS_CHUNK_ITERATIONS,
+                stop_flag=_growth_stop_flag,
+                allowed_tools=allowed_tools,
+                continuous=True,
+            ):
+                update_genesis_status(event)
+                await capture_worker_event(session_id, event, source="genesis")
+            _genesis_running = False
+            session = sync_growth_session_state(session_id, phase_override="self_improve")
+            completion = growth_session.evaluate_completion(
+                scorecard=session["scorecard"],
+                target_score=session["target_score"],
+                sustained_hits=session["sustained_hits"],
+                sustained_window=session["sustained_window"],
+                budget_used_usd=session["budget"]["used_usd"],
+                budget_cap_usd=session["budget"]["cap_usd"],
+                storage_used_bytes=session["storage"]["used_bytes"],
+                storage_cap_bytes=session["storage"]["cap_bytes"],
+            )
+            update_payload = {
+                "sustained_hits": completion["sustained_hits"],
+                "completion_state": completion["state"],
+                "status": "completed" if completion["completed"] else ("paused" if completion["state"].endswith("_capped") else "running"),
+            }
+            if completion["completed"]:
+                update_payload["completed_at"] = growth_session._now()  # type: ignore[attr-defined]
+            session = growth_session.update_session(session_id, **update_payload)
+            await broadcast_growth_event(session_id, "growth_scorecard_updated", {"session_id": session_id, "scorecard": session["scorecard"]})
+            if completion["completed"]:
+                await broadcast_growth_event(
+                    session_id,
+                    "growth_completed",
+                    {"session_id": session_id, "scorecard": session["scorecard"], "outputs": session["outputs"]},
+                )
+                return
+            if completion["state"].endswith("_capped"):
+                await broadcast_growth_event(
+                    session_id,
+                    "growth_budget_warning",
+                    {"session_id": session_id, "state": completion["state"], "budget": session["budget"], "storage": session["storage"]},
+                )
+                return
+            await asyncio.sleep(0)
+    finally:
+        _bootstrap_running = False
+        _genesis_running = False
+        _growth_running = False
 
 
 def reset_housekeeping_status() -> None:
@@ -379,6 +704,7 @@ def update_housekeeping_supervisor_status(event: dict) -> None:
 async def lifespan(app: FastAPI):
     global performer, analyzer, modifier, solver, challenger, arena_protocol
     global bootstrap_peer_a, bootstrap_peer_b, bootstrap_broker, bootstrap_protocol
+    global _growth_task
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
     model = require_openai_model()
     performer = Performer()
@@ -398,7 +724,11 @@ async def lifespan(app: FastAPI):
     challenger._model = model  # type: ignore[attr-defined]
     bootstrap_peer_a._model = model  # type: ignore[attr-defined]
     bootstrap_peer_b._model = model  # type: ignore[attr-defined]
+    growth_session.ensure_growth_environment()
     restore_bootstrap_from_checkpoint()
+    active_session = growth_session.get_active_session()
+    if active_session and active_session["status"] == "running":
+        _growth_task = asyncio.create_task(run_growth_session_loop(active_session["session_id"]))
     yield
 
 
@@ -452,6 +782,8 @@ class StartRequest(BaseModel):
 @app.post("/api/evolve/start")
 async def start_evolution(req: StartRequest):
     global _is_running
+    if _growth_running:
+        return {"error": "growth session is running; stop it before starting classic mode"}
     if _is_running:
         return {"error": "evolution already running"}
     model = require_openai_model()
@@ -527,6 +859,8 @@ class ArenaStartRequest(BaseModel):
 @app.post("/api/arena/start")
 async def start_arena(req: ArenaStartRequest):
     global _arena_running, _arena_stop_flag
+    if _growth_running:
+        return {"error": "growth session is running; stop it before starting arena mode"}
     if _arena_running:
         return {"error": "arena already running"}
     model = require_openai_model()
@@ -604,6 +938,8 @@ class BootstrapStartRequest(BaseModel):
 @app.post("/api/bootstrap/start")
 async def start_bootstrap(req: BootstrapStartRequest):
     global _bootstrap_running, _bootstrap_stop_flag
+    if _growth_running:
+        return {"error": "growth session is running; stop it before starting bootstrap mode"}
     if _bootstrap_running:
         return {"error": "bootstrap already running"}
     model = require_openai_model()
@@ -705,6 +1041,8 @@ class GenesisStartRequest(BaseModel):
 @app.post("/api/genesis/start")
 async def start_genesis(req: GenesisStartRequest):
     global _genesis_running, _genesis_stop_flag, _genesis_status
+    if _growth_running:
+        return {"error": "growth session is running; stop it before starting genesis mode"}
     if _genesis_running:
         return {"error": "genesis already running"}
     model = require_openai_model()
@@ -714,14 +1052,8 @@ async def start_genesis(req: GenesisStartRequest):
         global _genesis_running, _genesis_stop_flag, _genesis_status
         _genesis_running = True
         _genesis_stop_flag = [False]
-        _genesis_status = {
-            "phase": "RESEARCH",
-            "iteration": 0,
-            "total_cost_usd": 0.0,
-            "pricing_known": True,
-            "files_created": [],
-            "last_assessment": None,
-        }
+        reset_genesis_status()
+        _genesis_status["phase"] = "RESEARCH"
         try:
             async for event in run_genesis(
                 client=client,
@@ -730,25 +1062,7 @@ async def start_genesis(req: GenesisStartRequest):
                 stop_flag=_genesis_stop_flag,
             ):
                 await broadcast(event)
-                # Mirror key state into _genesis_status for the /status endpoint
-                ev = event.get("event", "")
-                data = event.get("data", {})
-                if ev == "genesis_phase_change":
-                    _genesis_status["phase"] = data.get("new_phase", _genesis_status["phase"])
-                elif ev == "genesis_tool_call":
-                    _genesis_status["iteration"] = data.get("iteration", _genesis_status["iteration"])
-                elif ev == "genesis_token_usage":
-                    _genesis_status["total_cost_usd"] = data.get("total_cost_usd", 0.0)
-                    _genesis_status["pricing_known"] = data.get("pricing_known", True)
-                elif ev == "genesis_assessment":
-                    _genesis_status["last_assessment"] = data.get("scores")
-                elif ev == "genesis_file_changed":
-                    path = data.get("path")
-                    if path and path not in _genesis_status["files_created"]:
-                        _genesis_status["files_created"].append(path)
-                elif ev == "genesis_complete":
-                    _genesis_status["files_created"] = data.get("files_created", [])
-                    _genesis_status["phase"] = "COMPLETE"
+                update_genesis_status(event)
         except Exception as exc:
             await broadcast({"event": "genesis_error", "data": _error_data(exc, phase="genesis_run")})
         finally:
@@ -776,14 +1090,7 @@ async def reset_genesis():
     if WORKSPACE_ROOT.exists():
         shutil.rmtree(WORKSPACE_ROOT)
     ensure_workspace()
-    _genesis_status = {
-        "phase": "IDLE",
-        "iteration": 0,
-        "total_cost_usd": 0.0,
-        "pricing_known": True,
-        "files_created": [],
-        "last_assessment": None,
-    }
+    reset_genesis_status()
     await broadcast({"event": "genesis_reset", "data": {}})
     return {"status": "reset"}
 
@@ -798,14 +1105,7 @@ async def get_genesis_status():
 
 @app.get("/api/genesis/workspace")
 async def get_genesis_workspace():
-    if not WORKSPACE_ROOT.exists():
-        return {"files": []}
-    files = []
-    for path in sorted(WORKSPACE_ROOT.rglob("*")):
-        if path.is_file() and not path.name.startswith("_genesis"):
-            rel = str(path.relative_to(WORKSPACE_ROOT))
-            files.append({"path": rel, "size_bytes": path.stat().st_size})
-    return {"files": files, "workspace": str(WORKSPACE_ROOT)}
+    return {"files": list_genesis_workspace_files(), "workspace": str(WORKSPACE_ROOT)}
 
 
 @app.get("/api/genesis/narrative")
@@ -815,6 +1115,179 @@ async def get_genesis_narrative():
         return {"content": None}
     content = log_path.read_text(encoding="utf-8", errors="replace")
     return {"content": content[-4000:] if len(content) > 4000 else content}
+
+
+class GrowthSessionStartRequest(BaseModel):
+    budget_cap_usd: float = Field(default=growth_session.DEFAULT_BUDGET_CAP_USD, gt=0)
+    storage_cap_bytes: int = Field(default=growth_session.DEFAULT_STORAGE_CAP_BYTES, gt=1024)
+    target_score: float = Field(default=growth_session.DEFAULT_TARGET_SCORE, ge=50, le=100)
+    sustained_window: int = Field(default=growth_session.DEFAULT_SUSTAINED_WINDOW, ge=1, le=12)
+
+
+@app.post("/api/growth/session/start")
+async def start_growth_session(req: GrowthSessionStartRequest):
+    global _growth_task
+    if _is_running or _arena_running or _bootstrap_running or _genesis_running:
+        return {"error": "another mode is already running; stop it before starting the growth session"}
+    active = growth_session.get_active_session()
+    if _growth_running:
+        return {"error": "growth session already running"}
+    if active and active["status"] == "completed":
+        return {"error": "active growth session is complete; archive or reset it before starting a new one"}
+    if active is None:
+        await reset_growth_runtime_surfaces()
+        active = growth_session.create_session(
+            model=require_openai_model(),
+            budget_cap_usd=req.budget_cap_usd,
+            storage_cap_bytes=req.storage_cap_bytes,
+            target_score=req.target_score,
+            sustained_window=req.sustained_window,
+        )
+    _growth_task = asyncio.create_task(run_growth_session_loop(active["session_id"]))
+    return {"status": "started", "session_id": active["session_id"]}
+
+
+@app.post("/api/growth/session/pause")
+async def pause_growth_session():
+    global _growth_stop_flag
+    active = growth_session.get_active_session()
+    if not _growth_running or active is None:
+        return {"error": "growth session not running"}
+    _growth_stop_flag[0] = True
+    return {"status": "stopping", "session_id": active["session_id"]}
+
+
+@app.post("/api/growth/session/resume")
+async def resume_growth_session():
+    global _growth_task
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"error": "no active growth session"}
+    if _growth_running or active["status"] == "running":
+        if _growth_running:
+            return {"error": "growth session already running"}
+    if active["status"] == "completed":
+        return {"error": "active growth session is complete; reset it to begin a new lineage"}
+    _growth_task = asyncio.create_task(run_growth_session_loop(active["session_id"]))
+    return {"status": "resuming", "session_id": active["session_id"]}
+
+
+@app.post("/api/growth/session/archive")
+async def archive_growth_session():
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"error": "no active growth session"}
+    if _growth_running:
+        return {"error": "cannot archive while the growth session is running"}
+    archived = growth_session.archive_session_bundle(
+        active["session_id"],
+        reason="manual_archive",
+        bootstrap_workspace=BOOTSTRAP_WORKSPACE,
+        genesis_workspace=WORKSPACE_ROOT,
+    )
+    await reset_growth_runtime_surfaces()
+    await broadcast({"event": "growth_archived", "data": {"session_id": archived["session_id"], "archive_path": archived["archive_path"]}, "source": "growth"})
+    return {"status": "archived", "session_id": archived["session_id"], "archive_path": archived["archive_path"]}
+
+
+@app.post("/api/growth/session/reset")
+async def reset_growth_session():
+    active = growth_session.get_active_session()
+    if _growth_running:
+        return {"error": "cannot reset while the growth session is running"}
+    archived = None
+    if active is not None:
+        archived = growth_session.archive_session_bundle(
+            active["session_id"],
+            reason="reset",
+            bootstrap_workspace=BOOTSTRAP_WORKSPACE,
+            genesis_workspace=WORKSPACE_ROOT,
+        )
+    await reset_growth_runtime_surfaces()
+    fresh = growth_session.create_session(model=require_openai_model())
+    await broadcast({"event": "growth_session_reset", "data": {"session_id": fresh["session_id"], "archived_session_id": archived["session_id"] if archived else None}, "source": "growth"})
+    return {"status": "reset", "session_id": fresh["session_id"], "archived_session_id": archived["session_id"] if archived else None}
+
+
+@app.get("/api/growth/session")
+async def get_growth_session():
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"session": None}
+    return {
+        "running": _growth_running,
+        "session": active,
+        "artifacts": growth_session.list_session_artifacts(active["session_id"]),
+        "checkpoints": growth_session.list_checkpoints(active["session_id"]),
+        "events": growth_session.list_recent_session_events(active["session_id"], limit=120),
+        "scorecard_history": growth_session.list_scorecard_history(active["session_id"], limit=24),
+    }
+
+
+@app.get("/api/growth/session/artifacts")
+async def get_growth_session_artifacts():
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"files": []}
+    return {"files": growth_session.list_session_artifacts(active["session_id"])}
+
+
+@app.get("/api/growth/session/scorecard")
+async def get_growth_session_scorecard():
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"scorecard": None, "history": []}
+    return {"scorecard": active["scorecard"], "history": growth_session.list_scorecard_history(active["session_id"], limit=24)}
+
+
+@app.get("/api/growth/session/constraints")
+async def get_growth_session_constraints():
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"constraints": None}
+    return {
+        "constraints": {
+            "budget": active["budget"],
+            "storage": active["storage"],
+            "unlock_state": active["unlock_state"],
+            "completion_state": active["completion_state"],
+        }
+    }
+
+
+@app.get("/api/growth/session/checkpoints")
+async def get_growth_session_checkpoints():
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"checkpoints": []}
+    return {"checkpoints": growth_session.list_checkpoints(active["session_id"])}
+
+
+@app.get("/api/growth/session/events")
+async def get_growth_session_events(limit: int = 120):
+    active = growth_session.get_active_session()
+    if active is None:
+        return {"events": []}
+    return {"events": growth_session.list_recent_session_events(active["session_id"], limit=min(max(limit, 1), 500))}
+
+
+@app.get("/api/growth/archive")
+async def get_growth_archive():
+    return {"sessions": growth_session.list_archived_sessions()}
+
+
+@app.get("/api/growth/archive/{session_id}")
+async def get_growth_archive_session(session_id: str):
+    session = growth_session.get_session(session_id)
+    if session is None or session["archived_at"] is None:
+        return {"error": "archived session not found"}
+    return {
+        "session": session,
+        "artifacts": growth_session.list_session_artifacts(session_id),
+        "checkpoints": growth_session.list_checkpoints(session_id),
+        "events": growth_session.list_recent_session_events(session_id, limit=500),
+        "scorecard_history": growth_session.list_scorecard_history(session_id, limit=100),
+    }
 
 
 # ── Housekeeping endpoints ───────────────────────────────────────────────────

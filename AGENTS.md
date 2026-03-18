@@ -1,7 +1,11 @@
 # EvolveX — Codex Agent Context
 
 ## What This Is
-Self-modifying agent evolution system with five independent modes:
+Self-modifying agent evolution system centered on one persistent growth session:
+
+**Growth session** — One active long-running agent construction process. Bootstrap and Genesis now operate as internal phases of the same durable lifecycle with checkpoints, artifacts, scorecards, and archived lineage.
+
+The repo still contains these supporting regimes:
 
 **Classic mode** — Three agents (Performer, Analyzer, Modifier) in a loop:
 benchmark → analyze → propose mutation → sandbox validate → apply or rollback.
@@ -33,7 +37,8 @@ Full spec: `arena_spec.md`
 - venv at `.venv/` — always `source .venv/bin/activate` first
 
 ## Key Files
-- `api.py` — FastAPI server, WebSocket broadcast, and mode control endpoints
+- `api.py` — FastAPI server, WebSocket broadcast, legacy mode endpoints, and unified growth-session control plane
+- `evolution/growth_session.py` — durable session state, SQLite control plane, artifact/checkpoint registry, scorecards, and archive bundles
 - `agents/performer.py` — executes benchmark tasks, holds evolvable task_code
 - `agents/analyzer.py` — LLM identifies improvements
 - `agents/modifier.py` — LLM generates code mutations
@@ -45,15 +50,31 @@ Full spec: `arena_spec.md`
 - `evolution/challenges.py` — Challenge dataclass, validate_challenge, hardcoded fallbacks
 - `evolution/sandbox.py` — validates ALL mutations before applying (never skip)
 - `evolution/checkpoint.py` — save/restore before every mutation
+- `evolution/bootstrap.py` — bootstrap worker that can now run as resumable chunks under the growth session
+- `evolution/genesis.py` — genesis worker that can now run as resumable chunks under the growth session
 - `evolution/housekeeping.py` — repo/worktree audits, checkpoint recommendations, validation snapshots
 - `evolution/housekeeping_supervisor.py` — supervisor report synthesis and approval-gated action planning
 - `tests/test_sandbox.py` + `tests/test_fitness.py` — 13 passing tests
+- `tests/test_growth_session.py` — persistent growth-session coverage
 - `tests/test_housekeeping.py` — housekeeping audit coverage
 - `tests/test_housekeeping_supervisor.py` — supervisor report and action planning coverage
 - `codex_plan.md` — Classic mode execution plan
 - `arena_spec.md` — Arena mode full spec: architecture, event schema, build order
 
 ## Event Schema
+
+### Growth session (growth_session.py + api.py → WS)
+```
+growth_session_started   { session_id, phase }
+growth_session_paused    { session_id, phase }
+growth_phase_changed     { session_id, phase, unlocked_capabilities }
+growth_scorecard_updated { session_id, scorecard }
+growth_checkpoint_saved  { session_id, checkpoints }
+growth_budget_warning    { session_id, state, budget, storage }
+growth_completed         { session_id, scorecard, outputs }
+growth_archived          { session_id, archive_path }
+growth_session_reset     { session_id, archived_session_id }
+```
 
 ### Classic mode (loop.py → api.py → WS)
 ```
@@ -119,6 +140,7 @@ housekeeping_supervisor_error           { message, phase }
 - Never apply code mutations without sandbox validation first
 - Every mutation gets a checkpoint before it runs
 - All evolution events must be yielded from loop.py so the dashboard sees them
+- The product runtime is the persistent growth session; do not re-center the UI on short-lived mode demos
 - No hardcoded API keys — use .env
 - Functions over classes (Python)
 - After ANY Python edit: `python -m pytest tests/ -q` must pass

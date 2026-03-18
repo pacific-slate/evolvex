@@ -101,6 +101,9 @@ async def run_genesis(
     model: str,
     max_iterations: int = 1000,
     stop_flag: list[bool] | None = None,
+    *,
+    allowed_tools: set[str] | None = None,
+    continuous: bool = False,
 ) -> AsyncIterator[dict]:
     """
     Main Genesis loop. Async generator — yields event dicts.
@@ -160,14 +163,18 @@ async def run_genesis(
             "Document everything in BUILD_LOG.md."
         )
 
+    stop_reason = "chunk_limit" if continuous else "complete"
+
     while iteration < max_iterations:
         if stop_flag[0]:
+            stop_reason = "external_stop"
             yield {"event": "genesis_stopped", "data": {"iteration": iteration}}
             return
 
         # Budget check
         cost = agent.total_cost_usd
         if cost >= BUDGET_CAP_USD:
+            stop_reason = "budget_cap"
             yield {
                 "event": "genesis_error",
                 "data": {"message": f"Budget cap ${BUDGET_CAP_USD:.0f} reached (spent ${cost:.2f}). Stopping."},
@@ -210,6 +217,7 @@ async def run_genesis(
             # No tool calls — either done or thinking step
             if result["finish_reason"] == "stop":
                 # Agent declared it's done
+                stop_reason = "agent_stop"
                 break
             iteration += 1
             continue
@@ -220,6 +228,19 @@ async def run_genesis(
                 args = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
+
+            if allowed_tools is not None and tool_name not in allowed_tools:
+                rejection = f"Tool '{tool_name}' is not unlocked yet. Choose a permitted capability."
+                agent.feed_tool_result(tc.id, tool_name, rejection)
+                yield {
+                    "event": "genesis_tool_rejected",
+                    "data": {
+                        "tool": tool_name,
+                        "iteration": iteration,
+                        "reason": rejection,
+                    },
+                }
+                continue
 
             # Phase detection
             new_phase = _detect_phase(tool_name, current_phase)
@@ -301,8 +322,32 @@ async def run_genesis(
         if iteration % CHECKPOINT_EVERY == 0:
             try:
                 agent.save_checkpoint(CHECKPOINT_PATH)
+                yield {
+                    "event": "genesis_checkpoint_saved",
+                    "data": {
+                        "iteration": iteration,
+                        "path": CHECKPOINT_PATH,
+                    },
+                }
             except Exception:
                 pass  # never let a checkpoint failure kill the run
+
+    if continuous:
+        try:
+            agent.save_checkpoint(CHECKPOINT_PATH)
+        except Exception:
+            pass
+        yield {
+            "event": "genesis_chunk_complete",
+            "data": {
+                "iterations_completed": iteration,
+                "phase": current_phase,
+                "reason": stop_reason,
+                "checkpoint_path": CHECKPOINT_PATH,
+                **agent.token_usage,
+            },
+        }
+        return
 
     # ── Completion ──────────────────────────────────────────────────────────
     # Final assessment

@@ -1,5 +1,18 @@
 # Findings
 
+## 2026-03-18
+
+- Current product semantics are still bounded jobs: Bootstrap uses `rounds` and Genesis uses `max_iterations`.
+- `api.py` keeps subsystem truth mostly in memory, which prevents true restart-safe continuity for the agent growth product.
+- Bootstrap already contains the right raw primitives for the future product: staged capability unlocks, broker-governed actions, durable artifacts, checkpointing, and startup restore.
+- Genesis already contains the right raw primitives for later-stage autonomy: workspace artifacts, MetaAgent checkpointing, tool-driven phase detection, and budget tracking.
+- The main architectural gap is not capability; it is unifying these primitives under one durable session model with archive/restore semantics and a scorecard-driven overseer.
+- The dashboard currently consumes mode-specific status and event payloads, so backend contract changes will need a normalization rewrite rather than a cosmetic field rename.
+- The fastest safe migration path is to keep Bootstrap and Genesis as internal workers, then run them in resumable chunks under a single persistent growth-session controller.
+- Bootstrap needed a `continuous` mode so chunk boundaries checkpoint without pretending the session is complete.
+- Genesis needed both `continuous` chunk completion and tool gating so the overseer can actually withhold power instead of just describing it in the UI.
+- A composite `GET /api/growth/session` payload is enough to drive the new operator workspace without preserving the old mode dashboard contract.
+
 ## 2026-03-17
 
 - Current repo already supports four independent modes via FastAPI and a shared WebSocket stream.

@@ -199,6 +199,7 @@ async def run_bootstrap(
     broker: BootstrapBroker,
     protocol: BootstrapProtocol,
     stop_flag: list[bool] | None = None,
+    continuous: bool = False,
 ) -> AsyncIterator[dict]:
     stop_flag = stop_flag or [False]
     round_events: list[dict] = []
@@ -648,6 +649,32 @@ async def run_bootstrap(
         peer_a=peer_a,
         peer_b=peer_b,
     )
+    if continuous:
+        broker.save_checkpoint(
+            _checkpoint_state(
+                broker=broker,
+                protocol=protocol,
+                peer_a=peer_a,
+                peer_b=peer_b,
+                stage_index=stage_index,
+                round_num=rounds,
+                target_rounds=rounds,
+                round_events=round_events,
+                completed=False,
+                system_assessment=final_assessment,
+            )
+        )
+        yield {
+            "event": "bootstrap_checkpoint_saved",
+            "data": {
+                "round": rounds,
+                "stage": BOOTSTRAP_STAGES[stage_index].name,
+                "stage_id": BOOTSTRAP_STAGES[stage_index].id,
+                "assessment": final_assessment,
+                "target_rounds": rounds,
+            },
+        }
+        return
     broker.save_checkpoint(
         _checkpoint_state(
             broker=broker,
