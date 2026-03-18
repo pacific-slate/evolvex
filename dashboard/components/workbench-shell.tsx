@@ -2,9 +2,8 @@
 
 import type { ReactNode } from "react";
 
-import { SYSTEM_STORY_STEPS, getModeTheme } from "@/lib/evolvex-format";
+import { getModeTheme } from "@/lib/evolvex-format";
 import type {
-  InspectorSection,
   ModeDefinition,
   ModeKey,
   ModeRailCard,
@@ -76,36 +75,6 @@ export function MetricCard({
   );
 }
 
-function InspectorBlock({ section }: { section: InspectorSection }) {
-  return (
-    <Panel kicker={section.kicker} title={section.title}>
-      {section.body ? <p className="text-sm leading-7 text-white/72">{section.body}</p> : null}
-      {section.bullets ? (
-        <div className="space-y-2">
-          {section.bullets.map((bullet) => (
-            <div key={bullet} className="rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-3 text-sm leading-6 text-white/72">
-              {bullet}
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {section.items ? (
-        <div className="space-y-3">
-          {section.items.map((item) => (
-            <div key={`${item.label}-${item.value}`} className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-              <div className="flex items-start justify-between gap-4">
-                <span className="section-eyebrow">{item.label}</span>
-                <span className="text-right text-sm font-medium text-white">{item.value}</span>
-              </div>
-              {item.helper ? <p className="mt-2 text-sm leading-6 text-white/55">{item.helper}</p> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </Panel>
-  );
-}
-
 export function WorkbenchShell({
   mode,
   modeCards,
@@ -115,7 +84,6 @@ export function WorkbenchShell({
   operatorNotice,
   onDismissNotice,
   onModeChange,
-  inspectorSections,
   canvas,
   dock,
 }: {
@@ -127,7 +95,6 @@ export function WorkbenchShell({
   operatorNotice: string | null;
   onDismissNotice: () => void;
   onModeChange: (mode: ModeKey) => void;
-  inspectorSections: InspectorSection[];
   canvas: ReactNode;
   dock: ReactNode;
 }) {
@@ -136,6 +103,10 @@ export function WorkbenchShell({
   const supportingCards = modeCards.filter((card) => card.key !== "bootstrap");
   const selectedModeIsBootstrap = mode === "bootstrap";
   const latestSignal = overview.lastTrace;
+  const headerTitle = selectedModeIsBootstrap ? "Bootstrap operator view" : `${definition.label} operator view`;
+  const headerBody = selectedModeIsBootstrap
+    ? "Track stage, protocol, artifacts, and peer telemetry without turning the dashboard into the pitch itself."
+    : definition.whatItIs;
 
   return (
     <main className="workbench-shell" data-mode={mode}>
@@ -144,7 +115,7 @@ export function WorkbenchShell({
 
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10">
         <Panel className="relative overflow-hidden">
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-3">
                 <StatusPill tone={connected ? "success" : "danger"}>
@@ -155,17 +126,15 @@ export function WorkbenchShell({
                 </span>
               </div>
               <div className="space-y-4">
-                <SectionEyebrow>Bootstrap Workbench</SectionEyebrow>
-                <h1 className="max-w-4xl text-balance font-display text-4xl uppercase leading-none tracking-[0.08em] text-white md:text-6xl">
-                  Watch two agents figure out how to coordinate before they are trusted with real power.
+                <SectionEyebrow>{selectedModeIsBootstrap ? "Bootstrap Workbench" : `${definition.label} Workbench`}</SectionEyebrow>
+                <h1 className="max-w-4xl text-balance font-display text-3xl leading-tight tracking-tight text-white md:text-4xl">
+                  {headerTitle}
                 </h1>
-                <p className="max-w-3xl text-balance text-base leading-8 text-white/70 md:text-lg">
-                  Most agent demos start with full tool access and a lot of optimism. Bootstrap does the opposite. Two peer
-                  agents begin with messaging and scratch space only, then earn stronger capabilities as they form a shared
-                  protocol, produce artifacts, and survive review.
+                <p className="max-w-3xl text-balance text-sm leading-7 text-white/70 md:text-base">
+                  {headerBody}
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
                 {overview.metrics.map((metric) => (
                   <MetricCard key={metric.label} label={metric.label} value={metric.value} helper={metric.helper} />
                 ))}
@@ -173,38 +142,29 @@ export function WorkbenchShell({
             </div>
 
             <div className={`rounded-[28px] border bg-black/30 p-5 backdrop-blur-sm ${selectedModeIsBootstrap ? theme.border : "border-white/10"}`}>
-              <SectionEyebrow>{selectedModeIsBootstrap ? "Why this is the demo" : "Supporting regime"}</SectionEyebrow>
-              <h2 className="mt-3 text-balance font-display text-2xl uppercase tracking-[0.08em] text-white">
-                {selectedModeIsBootstrap ? "The point is to see whether coordination actually forms." : `${definition.label} is here as a comparison mode.`}
-              </h2>
-              <p className="mt-4 text-sm leading-7 text-white/70">
-                {selectedModeIsBootstrap
-                  ? "Bootstrap is the product story for the turn-in: staged capability unlocks, brokered actions, protocol emergence, and artifacts that stay inspectable after the run."
-                  : `${definition.whatItIs} It matters because it gives Bootstrap a baseline or comparison point instead of making the whole site feel like one random pile of tabs.`}
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {(selectedModeIsBootstrap ? ["turn-in hero", "live operator evidence", "earned autonomy"] : definition.audiences).map((audience) => (
-                  <span key={audience} className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/60">
-                    {audience}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                <SectionEyebrow>{selectedModeIsBootstrap ? "Latest Signal" : "Current View"}</SectionEyebrow>
-                {latestSignal ? (
-                  <div className="mt-3 space-y-2">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-sm font-medium text-white">{latestSignal.label}</p>
-                      <StatusPill tone={latestSignal.tone}>{latestSignal.mode}</StatusPill>
+              <SectionEyebrow>{selectedModeIsBootstrap ? "Operator Snapshot" : "Current View"}</SectionEyebrow>
+              {latestSignal ? (
+                <div className="mt-3 space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-lg font-semibold text-white">{latestSignal.label}</p>
+                      <p className="mt-2 text-sm leading-6 text-white/65">{latestSignal.summary}</p>
                     </div>
-                    <p className="text-sm leading-6 text-white/65">{latestSignal.summary}</p>
+                    <StatusPill tone={latestSignal.tone}>{latestSignal.mode}</StatusPill>
                   </div>
-                ) : (
-                  <p className="mt-3 text-sm leading-6 text-white/55">
-                    No live trace yet. Start Bootstrap and the page will shift from thesis to evidence.
-                  </p>
-                )}
-              </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedModeIsBootstrap ? ["bootstrap first", "operator evidence", "live telemetry"] : definition.audiences).map((audience) => (
+                      <span key={audience} className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/60">
+                        {audience}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-white/55">
+                  No live trace yet. Start a run and this card will track the most recent operator-visible change.
+                </p>
+              )}
             </div>
           </div>
 
@@ -219,20 +179,11 @@ export function WorkbenchShell({
               </button>
             </div>
           ) : null}
-
-          <div className="mt-8 grid gap-3 lg:grid-cols-4">
-            {SYSTEM_STORY_STEPS.map((step, index) => (
-              <div key={step} className="rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-4">
-                <SectionEyebrow>Watch {index + 1}</SectionEyebrow>
-                <p className="mt-3 text-sm leading-6 text-white/72">{step}</p>
-              </div>
-            ))}
-          </div>
         </Panel>
 
-        <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
+        <div className="grid gap-6 2xl:grid-cols-[16rem_minmax(0,1fr)]">
           <aside className="space-y-4">
-            <Panel kicker="Experiment Rail" title="Hero mode first, supporting regimes second">
+            <Panel kicker="Experiment Rail" title="Modes">
               <div className="space-y-3">
                 {bootstrapCard ? (() => {
                   const cardTheme = getModeTheme(bootstrapCard.key);
@@ -303,12 +254,6 @@ export function WorkbenchShell({
           </aside>
 
           <div className="space-y-6">{canvas}</div>
-
-          <aside className="space-y-4">
-            {inspectorSections.map((section) => (
-              <InspectorBlock key={section.id} section={section} />
-            ))}
-          </aside>
         </div>
 
         {dock}

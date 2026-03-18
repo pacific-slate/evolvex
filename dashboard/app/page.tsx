@@ -18,7 +18,6 @@ export default function Home() {
       operatorNotice={dashboard.operatorNotice}
       onDismissNotice={dashboard.dismissNotice}
       onModeChange={dashboard.setMode}
-      inspectorSections={dashboard.derived.inspectorSections}
       canvas={<ModeSections dashboard={dashboard} />}
       dock={<EventDock dashboard={dashboard} />}
     />

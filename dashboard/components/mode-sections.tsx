@@ -381,83 +381,62 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
 
   return (
     <>
-      <Panel kicker="Hero Run" title="A staged autonomy experiment with receipts" className={theme.panel}>
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-          <div className="space-y-5">
-            <p className="text-sm leading-7 text-white/72">
-              Bootstrap is the one to demo. Two peer agents begin with messaging and scratch space only, then have to
-              earn files, repo access, execution, shell, and research by coordinating well enough to move up the ladder.
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-white/55">
-              <StatusPill tone={running ? "active" : bootstrapStatus?.completed ? "success" : "idle"}>
-                {running ? "Bootstrap live" : bootstrapStatus?.completed ? "Completed run" : "Ready to run"}
-              </StatusPill>
-              {bootstrapStatus?.resumable && !running ? <StatusPill tone="warning">Resume available</StatusPill> : null}
-              <span className="signal-pill border-white/10 bg-white/5 text-white/65">
-                Round {bootstrapStatus?.round ?? 0}
-                {bootstrapStatus?.target_rounds ? ` / ${bootstrapStatus.target_rounds}` : ""}
-              </span>
-              <span className="signal-pill border-white/10 bg-white/5 text-white/65">
-                Cost {formatCurrency(bootstrapStatus?.run_cost_usd ?? 0)}
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-white/8">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 transition-all duration-500"
-                style={{ width: `${bootstrapProgress}%` }}
-              />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {BOOTSTRAP_STAGE_LABELS.map((stage) => {
-                const state =
-                  stage.id < (bootstrapStatus?.stage_id ?? 0)
-                    ? "complete"
-                    : stage.id === (bootstrapStatus?.stage_id ?? 0)
-                      ? "current"
-                      : "upcoming";
-                return (
-                  <div
-                    key={stage.name}
-                    className={`rounded-3xl border p-4 ${
-                      state === "complete"
-                        ? "border-emerald-300/20 bg-emerald-300/10"
-                        : state === "current"
-                          ? "border-sky-300/20 bg-sky-300/10"
-                          : "border-white/8 bg-black/20"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-white">{stage.name}</p>
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">{stage.id}</span>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-white/58">{stage.detail}</p>
-                  </div>
-                );
-              })}
-            </div>
+      <Panel kicker="Bootstrap Run" title="Live bootstrap status" className={theme.panel}>
+        <div className="space-y-5">
+          <p className="text-sm leading-7 text-white/68">
+            Keep the operator surface focused on stage progress, capability unlocks, protocol growth, and artifacts.
+          </p>
+          <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-white/55">
+            <StatusPill tone={running ? "active" : bootstrapStatus?.completed ? "success" : "idle"}>
+              {running ? "Bootstrap live" : bootstrapStatus?.completed ? "Completed run" : "Ready to run"}
+            </StatusPill>
+            {bootstrapStatus?.resumable && !running ? <StatusPill tone="warning">Resume available</StatusPill> : null}
+            <span className="signal-pill border-white/10 bg-white/5 text-white/65">
+              Round {bootstrapStatus?.round ?? 0}
+              {bootstrapStatus?.target_rounds ? ` / ${bootstrapStatus.target_rounds}` : ""}
+            </span>
+            <span className="signal-pill border-white/10 bg-white/5 text-white/65">
+              Cost {formatCurrency(bootstrapStatus?.run_cost_usd ?? 0)}
+            </span>
           </div>
-
-          <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
-            <p className="section-eyebrow">What To Watch</p>
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="text-sm font-medium text-white">1. Shared protocol shows up</p>
-                <p className="mt-1 text-sm leading-6 text-white/58">Tokens appear, get adopted by the other peer, and only become stable after repeated use.</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">2. Capability has to be earned</p>
-                <p className="mt-1 text-sm leading-6 text-white/58">The broker only unlocks stronger tools when the current stage criteria are met.</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">3. Coordination leaves evidence</p>
-                <p className="mt-1 text-sm leading-6 text-white/58">Artifacts, broker decisions, and assessments stick around after the run instead of disappearing into the model haze.</p>
-              </div>
-            </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/8">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 transition-all duration-500"
+              style={{ width: `${bootstrapProgress}%` }}
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+            {BOOTSTRAP_STAGE_LABELS.map((stage) => {
+              const state =
+                stage.id < (bootstrapStatus?.stage_id ?? 0)
+                  ? "complete"
+                  : stage.id === (bootstrapStatus?.stage_id ?? 0)
+                    ? "current"
+                    : "upcoming";
+              return (
+                <div
+                  key={stage.name}
+                  className={`rounded-3xl border p-4 ${
+                    state === "complete"
+                      ? "border-emerald-300/20 bg-emerald-300/10"
+                      : state === "current"
+                        ? "border-sky-300/20 bg-sky-300/10"
+                        : "border-white/8 bg-black/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">{stage.name}</p>
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">{stage.id}</span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-white/58">{stage.detail}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </Panel>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel kicker="Run Controls" title="Bootstrap autonomy run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Rounds" value={bootstrapRounds} min={1} max={50} onChange={dashboard.controls.setBootstrapRounds} />
@@ -510,7 +489,7 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
       </div>
 
       <Panel kicker="Peer Telemetry" title="Who is contributing to the protocol?">
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 2xl:grid-cols-2">
           {bootstrapPeers.length ? (
             bootstrapPeers.map((peer) => (
               <div key={peer.name} className="rounded-[28px] border border-white/8 bg-black/20 p-5">
@@ -537,7 +516,7 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
         </div>
       </Panel>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <Panel kicker="Operating Language" title="Token adoption, stability, and meaning">
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
@@ -628,7 +607,7 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
     <>
       <ModeBrief dashboard={dashboard} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel kicker="Run Controls" title="Genesis autonomous build session" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Max Iterations" value={genesisMaxIter} min={10} max={2000} step={100} onChange={dashboard.controls.setGenesisMaxIter} />
@@ -676,7 +655,7 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
         </Panel>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Panel kicker="Workspace Files" title="Artifacts under construction">
           {genesisFiles.length ? (
             <div className="space-y-2">
