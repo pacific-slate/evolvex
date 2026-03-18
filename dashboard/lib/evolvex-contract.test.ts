@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatEventSummary, inferModeFromEvent } from "./evolvex-format";
-import { buildModeRailCards, buildWorkbenchOverview, sanitizeRunCount } from "./evolvex-normalize";
+import { buildDevelopmentView, buildModeRailCards, buildWorkbenchOverview, sanitizeRunCount } from "./evolvex-normalize";
 import { resolveApiBase, resolveWsUrl } from "./runtime";
 import type {
   BootstrapProtocolState,
@@ -311,5 +311,22 @@ describe("overview normalization", () => {
     expect(sanitizeRunCount(-5, 1, 20)).toBe(1);
     expect(sanitizeRunCount(999, 1, 20)).toBe(20);
     expect(sanitizeRunCount(8, 1, 20)).toBe(8);
+  });
+
+  it("builds a mindstate-first development view for the selected mode", () => {
+    const bootstrapView = buildDevelopmentView("bootstrap", makeState());
+    const genesisView = buildDevelopmentView("genesis", makeState());
+
+    expect(bootstrapView.title).toContain("constrained peers");
+    expect(bootstrapView.progressValueLabel).toBe("3/8");
+    expect(bootstrapView.outputs.find((output) => output.label === "Artifacts captured")?.value).toBe("1");
+    expect(bootstrapView.capabilities[0]).toMatchObject({
+      label: "scratchpad",
+      state: "active",
+    });
+
+    expect(genesisView.progressValueLabel).toBe("BUILD");
+    expect(genesisView.gauges.find((gauge) => gauge.label === "Assessment")?.display).toBe("78");
+    expect(genesisView.constraints[1]).toContain("observed cost");
   });
 });

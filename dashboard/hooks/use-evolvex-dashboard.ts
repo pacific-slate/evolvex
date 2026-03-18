@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { MODE_DEFINITIONS, inferModeFromEvent } from "@/lib/evolvex-format";
-import { buildIdleBrief, buildInspectorSections, buildModeRailCards, buildTraceEntries, buildWorkbenchOverview, sanitizeRunCount } from "@/lib/evolvex-normalize";
+import {
+  buildDevelopmentView,
+  buildIdleBrief,
+  buildInspectorSections,
+  buildModeRailCards,
+  buildTraceEntries,
+  buildWorkbenchOverview,
+  sanitizeRunCount,
+} from "@/lib/evolvex-normalize";
 import { getRuntimeConfig } from "@/lib/runtime";
 import type {
   ArenaStatusResponse,
@@ -529,6 +537,7 @@ export function useEvolvexDashboard() {
 
   const overview = useMemo(() => buildWorkbenchOverview(rawState), [rawState]);
   const modeCards = useMemo(() => buildModeRailCards(rawState), [rawState]);
+  const developmentView = useMemo(() => buildDevelopmentView(mode, rawState), [mode, rawState]);
   const inspectorSections = useMemo(() => buildInspectorSections(mode, rawState), [mode, rawState]);
   const currentTrace = useMemo(() => buildTraceEntries(events, mode, 36), [events, mode]);
   const allTrace = useMemo(() => buildTraceEntries(events, "all", 120), [events]);
@@ -576,6 +585,7 @@ export function useEvolvexDashboard() {
       idleBrief,
       overview,
       modeCards,
+      developmentView,
       inspectorSections,
       currentTrace,
       allTrace,

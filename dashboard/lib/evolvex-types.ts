@@ -315,6 +315,67 @@ export type WorkbenchOverview = {
   metrics: OverviewMetric[];
 };
 
+export type DevelopmentHeaderChip = {
+  label: string;
+  value: string;
+  tone: StatusTone;
+};
+
+export type DevelopmentGauge = {
+  label: string;
+  value: number;
+  display: string;
+  helper: string;
+  tone: StatusTone;
+};
+
+export type DevelopmentCapability = {
+  label: string;
+  state: "active" | "emerging" | "locked";
+  helper: string;
+};
+
+export type DevelopmentOutput = {
+  label: string;
+  value: string;
+  helper: string;
+};
+
+export type DevelopmentTimelineEntry = {
+  id: string;
+  label: string;
+  summary: string;
+  meta: string;
+  tone: StatusTone;
+  mode: ModeKey;
+};
+
+export type DevelopmentView = {
+  mode: ModeKey;
+  eyebrow: string;
+  title: string;
+  summary: string;
+  objective: string;
+  tension: string;
+  nextStep: string;
+  progressLabel: string;
+  progressValue: number;
+  progressValueLabel: string;
+  progressHelper: string;
+  budgetLabel: string;
+  budgetValue: string;
+  budgetHelper: string;
+  budgetPercent: number | null;
+  headerChips: DevelopmentHeaderChip[];
+  stateItems: InspectorItem[];
+  gauges: DevelopmentGauge[];
+  capabilities: DevelopmentCapability[];
+  outputs: DevelopmentOutput[];
+  constraints: string[];
+  timeline: DevelopmentTimelineEntry[];
+  changed: FormattedTrace | null;
+};
+
 export type ModeRailCard = {
   key: ModeKey;
   label: string;

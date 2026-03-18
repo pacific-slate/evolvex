@@ -14,12 +14,11 @@ export default function Home() {
       mode={dashboard.mode}
       modeCards={dashboard.derived.modeCards}
       overview={dashboard.derived.overview}
-      definition={dashboard.derived.activeDefinition}
+      developmentView={dashboard.derived.developmentView}
       connected={dashboard.data.connected}
       operatorNotice={dashboard.operatorNotice}
       onDismissNotice={dashboard.dismissNotice}
       onModeChange={dashboard.setMode}
-      inspectorSections={dashboard.derived.inspectorSections}
       growthLatest={dashboard.data.growthLatest}
       growthRuns={dashboard.data.growthRuns}
       growthLatestRun={dashboard.data.growthLatestRun}
