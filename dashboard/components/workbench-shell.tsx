@@ -512,78 +512,82 @@ export function WorkbenchShell({
             </Panel>
           </aside>
 
-          <div className="space-y-6">{canvas}</div>
+          <div className="workspace-stack">
+            <div className="workspace-summary-grid">
+              <Panel kicker={developmentView.eyebrow} title={developmentView.title}>
+                <div className="canvas-focus-grid">
+                  <div className="focus-card">
+                    <SectionEyebrow>Objective</SectionEyebrow>
+                    <p className="mt-3 text-base font-medium text-slate-950">{developmentView.objective}</p>
+                  </div>
+                  <div className="focus-card">
+                    <SectionEyebrow>Pressure</SectionEyebrow>
+                    <p className="mt-3 text-base font-medium text-slate-950">{developmentView.tension}</p>
+                  </div>
+                  <div className="focus-card">
+                    <SectionEyebrow>Next</SectionEyebrow>
+                    <p className="mt-3 text-base font-medium text-slate-950">{developmentView.nextStep}</p>
+                  </div>
+                </div>
+              </Panel>
 
-          <aside className="space-y-4">
-            <Panel kicker={developmentView.eyebrow} title={developmentView.title}>
-              <div className="space-y-3">
-                <div className="focus-card">
-                  <SectionEyebrow>Objective</SectionEyebrow>
-                  <p className="mt-3 text-base font-medium text-slate-950">{developmentView.objective}</p>
+              <Panel kicker="Run" title="Progress">
+                <div className="space-y-4">
+                  <ProgressRail
+                    label={developmentView.progressLabel}
+                    value={developmentView.progressValue}
+                    valueLabel={developmentView.progressValueLabel}
+                    helper={developmentView.progressHelper}
+                  />
+                  <ProgressRail
+                    label={developmentView.budgetLabel}
+                    value={developmentView.budgetPercent ?? 8}
+                    valueLabel={developmentView.budgetValue}
+                    helper={developmentView.budgetHelper}
+                    dimmed={developmentView.budgetPercent === null}
+                  />
                 </div>
-                <div className="focus-card">
-                  <SectionEyebrow>Pressure</SectionEyebrow>
-                  <p className="mt-3 text-base font-medium text-slate-950">{developmentView.tension}</p>
-                </div>
-                <div className="focus-card">
-                  <SectionEyebrow>Next</SectionEyebrow>
-                  <p className="mt-3 text-base font-medium text-slate-950">{developmentView.nextStep}</p>
-                </div>
-              </div>
-            </Panel>
-
-            <Panel kicker="Run" title="Progress">
-              <div className="space-y-4">
-                <ProgressRail
-                  label={developmentView.progressLabel}
-                  value={developmentView.progressValue}
-                  valueLabel={developmentView.progressValueLabel}
-                  helper={developmentView.progressHelper}
-                />
-                <ProgressRail
-                  label={developmentView.budgetLabel}
-                  value={developmentView.budgetPercent ?? 8}
-                  valueLabel={developmentView.budgetValue}
-                  helper={developmentView.budgetHelper}
-                  dimmed={developmentView.budgetPercent === null}
-                />
-              </div>
-            </Panel>
+              </Panel>
+            </div>
 
             <Panel kicker="State" title="Metrics">
-              <div className="space-y-3">
+              <div className="workspace-metrics-grid">
                 {developmentView.gauges.map((gauge) => (
                   <GaugeCard key={gauge.label} gauge={gauge} />
                 ))}
               </div>
             </Panel>
 
-            <Panel kicker="Capabilities" title="Active and locked">
-              <div className="space-y-3">
-                {developmentView.capabilities.map((capability) => (
-                  <CapabilityRow key={`${capability.label}-${capability.state}`} {...capability} />
-                ))}
-              </div>
-            </Panel>
+            <div className="space-y-6">{canvas}</div>
 
-            <Panel kicker="Outputs" title="Current outputs">
-              <div className="space-y-3">
-                {developmentView.outputs.map((output) => (
-                  <OutputRow key={output.label} label={output.label} value={output.value} />
-                ))}
-              </div>
-            </Panel>
+            <div className="workspace-meta-grid">
+              <Panel kicker="Capabilities" title="Active and locked">
+                <div className="space-y-3">
+                  {developmentView.capabilities.map((capability) => (
+                    <CapabilityRow key={`${capability.label}-${capability.state}`} {...capability} />
+                  ))}
+                </div>
+              </Panel>
 
-            <Panel kicker="Constraints" title="Current limits">
-              <div className="space-y-3">
-                {developmentView.constraints.map((constraint) => (
-                  <div key={constraint} className="constraint-row">
-                    <p className="text-sm leading-6 text-slate-700">{constraint}</p>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-          </aside>
+              <Panel kicker="Outputs" title="Current outputs">
+                <div className="space-y-3">
+                  {developmentView.outputs.map((output) => (
+                    <OutputRow key={output.label} label={output.label} value={output.value} />
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel kicker="Constraints" title="Current limits">
+                <div className="space-y-3">
+                  {developmentView.constraints.map((constraint) => (
+                    <div key={constraint} className="constraint-row">
+                      <p className="text-sm leading-6 text-slate-700">{constraint}</p>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          </div>
         </div>
 
         <section className="utility-stack">

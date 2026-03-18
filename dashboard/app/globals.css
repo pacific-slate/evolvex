@@ -196,8 +196,32 @@ a {
 .development-layout {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr) minmax(19rem, 22rem);
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
   align-items: start;
+}
+
+.workspace-stack,
+.workspace-summary-grid,
+.workspace-meta-grid,
+.workspace-metrics-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.workspace-stack {
+  align-content: start;
+}
+
+.workspace-summary-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+}
+
+.workspace-meta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workspace-metrics-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .cognitive-canvas {
@@ -408,6 +432,12 @@ a {
 
 @media (max-width: 1279px) {
   .development-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-summary-grid,
+  .workspace-meta-grid,
+  .workspace-metrics-grid {
     grid-template-columns: 1fr;
   }
 
