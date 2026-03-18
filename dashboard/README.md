@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EvolveX Dashboard
 
-## Getting Started
+This app is the submission-grade frontend for the EvolveX workbench. It turns the backend's existing REST and WebSocket surfaces into a product story about supervised agent evolution rather than a generic developer console.
 
-First, run the development server:
+## What The Frontend Does
+
+- Positions the app as an agent evolution workbench
+- Presents Classic, Arena, Bootstrap, and Genesis as experiment types
+- Normalizes inconsistent backend payloads into readable UI state
+- Keeps the live event stream readable by formatting traces instead of dumping raw JSON
+- Explains the product even when no run is active
+
+## Local Development
+
+From the repo root:
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+The dashboard defaults to:
+
+- `http://localhost:8000` for REST when opened on `localhost`
+- `ws://localhost:8000/ws/evolution` for the shared event stream
+
+Optional overrides:
+
+- `NEXT_PUBLIC_EVOLVEX_API_URL`
+- `NEXT_PUBLIC_EVOLVEX_WS_URL`
+
+## Useful Commands
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm test
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Frontend Structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `app/page.tsx`: thin composition layer for the workbench
+- `app/layout.tsx`: metadata and font setup
+- `app/globals.css`: global visual system and shell styling
+- `hooks/use-evolvex-dashboard.ts`: API, WebSocket, actions, and derived state
+- `lib/evolvex-types.ts`: shared frontend contract types
+- `lib/runtime.ts`: runtime API/WS resolution
+- `lib/evolvex-format.ts`: mode copy, themes, and human-readable trace formatting
+- `lib/evolvex-normalize.ts`: overview, inspector, rail-card, and trace derivation helpers
+- `components/workbench-shell.tsx`: hero, rail, inspector, and layout shell
+- `components/mode-sections.tsx`: mode-driven evidence panels and controls
+- `components/event-dock.tsx`: persistent trace dock
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data Contract Notes
 
-## Learn More
+The frontend intentionally builds on the current backend contract rather than waiting for new APIs.
 
-To learn more about Next.js, take a look at the following resources:
+- Classic uses generic event names like `started` and `complete`, so the frontend tags them as Classic activity.
+- Genesis exposes `running: boolean` while other modes use `status` strings; the hook normalizes that into shared run-state.
+- Arena and Bootstrap protocol payloads differ slightly, so the UI formats them into a common evidence story.
+- Several mode summaries are derived client-side from recent events because the snapshot endpoints are intentionally incomplete for in-flight progress.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Test Coverage
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The dashboard includes lightweight Vitest coverage for the pure runtime/format/normalization helpers:
 
-## Deploy on Vercel
+- `lib/evolvex-contract.test.ts`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+These tests verify the frontend-only contract layer without introducing a heavy component-test stack.
