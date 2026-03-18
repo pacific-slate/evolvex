@@ -19,6 +19,11 @@ BIND_HOST="$BIND_HOST"
 cd "\$REMOTE_DIR"
 git fetch origin main
 git checkout main
+
+# The backend checkout no longer serves the live UI. Clear stale frontend drift here
+# so backend-only pulls do not get blocked by old dashboard installs or edits.
+git restore --source=HEAD --staged --worktree dashboard 2>/dev/null || true
+
 git pull --ff-only origin main
 
 source .venv/bin/activate

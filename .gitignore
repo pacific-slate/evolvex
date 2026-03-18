@@ -38,6 +38,7 @@ checkpoints/*.json
 tests/__pycache__/
 .pytest_cache/
 .bootstrap_workspace/
+workspace/
 
 # Planning artifacts (internal tooling, not part of submission)
 *.plan.md
