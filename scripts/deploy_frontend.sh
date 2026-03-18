@@ -27,9 +27,13 @@ cd dashboard
 npm ci
 npm run build
 
+pkill -f "nohup npm start -- -p \$PORT" 2>/dev/null || true
+pkill -f "npm start -p \$PORT" 2>/dev/null || true
+pkill -f "next start -p \$PORT" 2>/dev/null || true
+
 pids=\$(lsof -tiTCP:"\$PORT" -sTCP:LISTEN || true)
 if [ -n "\$pids" ]; then
-  kill \$pids
+  kill -9 \$pids
   sleep 2
 fi
 
