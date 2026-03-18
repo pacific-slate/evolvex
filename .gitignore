@@ -21,6 +21,9 @@ dashboard/out/
 # Agent skills (local dev tooling, not part of submission)
 .agent/
 .cursor/
+.worktrees/
+.vscode/
+.wrangler/
 
 # OS
 .DS_Store
