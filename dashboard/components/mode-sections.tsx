@@ -6,19 +6,11 @@ import type { EvolvexDashboardController } from "@/hooks/use-evolvex-dashboard";
 
 import { Panel, StatusPill } from "./workbench-shell";
 
-const BOOTSTRAP_STAGE_LABELS = [
-  { id: 0, name: "Handshake", detail: "Start with messaging and scratch space. No real power yet." },
-  { id: 1, name: "Artifacts", detail: "Turn coordination into durable files and explicit protocol." },
-  { id: 2, name: "Context", detail: "Anchor reasoning to the actual repo instead of pure vibes." },
-  { id: 3, name: "Build", detail: "Unlock execution and test creation once the peers earn it." },
-  { id: 4, name: "Verify", detail: "Unlock shell and stronger verification criteria." },
-  { id: 5, name: "Research", detail: "Unlock web retrieval and outside references." },
-  { id: 6, name: "Integration", detail: "Stabilize the protocol and tie the work together." },
-] as const;
+const BOOTSTRAP_STAGE_LABELS = ["Handshake", "Artifacts", "Context", "Build", "Verify", "Research", "Integration"];
 
 function CompressionSparkline({ history }: { history: { compression_ratio: number }[] }) {
   if (history.length < 2) {
-    return <span className="text-sm text-white/40">No compression history yet</span>;
+    return <span className="text-sm text-white/40">No history.</span>;
   }
 
   const width = 120;
@@ -138,7 +130,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 
 function TraceMiniList({ trace }: { trace: EvolvexDashboardController["derived"]["currentTrace"] }) {
   if (trace.length === 0) {
-    return <p className="text-sm leading-7 text-white/55">No live trace yet. This panel will fill with mode-specific evidence once the run emits events.</p>;
+    return <p className="text-sm leading-7 text-white/55">No trace.</p>;
   }
 
   return (
@@ -158,28 +150,6 @@ function TraceMiniList({ trace }: { trace: EvolvexDashboardController["derived"]
   );
 }
 
-function ModeBrief({
-  dashboard,
-}: {
-  dashboard: EvolvexDashboardController;
-}) {
-  const { activeDefinition, idleBrief } = dashboard.derived;
-  const isRunning = dashboard.data.modeRunning[dashboard.mode];
-
-  return (
-    <Panel kicker={isRunning ? "Live Experiment Brief" : idleBrief.eyebrow} title={isRunning ? activeDefinition.heroTitle : idleBrief.title}>
-      <p className="max-w-4xl text-sm leading-7 text-white/72">{isRunning ? activeDefinition.whatItIs : idleBrief.summary}</p>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {(isRunning ? activeDefinition.captures.slice(0, 3) : idleBrief.bullets).map((item) => (
-          <div key={item} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-white/68">
-            {item}
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
 function ClassicSection({ dashboard }: { dashboard: EvolvexDashboardController }) {
   const theme = getModeTheme("classic");
   const { agent, currentCode } = dashboard.data;
@@ -188,56 +158,48 @@ function ClassicSection({ dashboard }: { dashboard: EvolvexDashboardController }
 
   return (
     <>
-      <ModeBrief dashboard={dashboard} />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Panel kicker="Run Controls" title="Classic mutation run" className={theme.panel}>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <Panel kicker="Classic" title="Run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Cycles" value={cycles} min={1} max={20} onChange={dashboard.controls.setCycles} />
             <div className="flex flex-wrap gap-3">
               <PrimaryButton className={theme.button} disabled={running} onClick={dashboard.actions.startClassic}>
-                {running ? "Classic Live" : "Start Evolution"}
+                {running ? "Running" : "Start"}
               </PrimaryButton>
-              {running ? <SecondaryButton onClick={dashboard.actions.stopClassic}>Stop Run</SecondaryButton> : null}
+              {running ? <SecondaryButton onClick={dashboard.actions.stopClassic}>Stop</SecondaryButton> : null}
               <SecondaryButton disabled={running} onClick={dashboard.actions.resetClassic} className={theme.buttonMuted}>
-                Reset Loop
+                Reset
               </SecondaryButton>
-              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear Trace</SecondaryButton>
+              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear</SecondaryButton>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-7 text-white/55">
-            Classic uses checkpointed mutation and sandbox validation as the core safety loop. Every accepted or rejected change is recorded in the shared trace dock.
-          </p>
         </Panel>
 
-        <Panel kicker="Current Benchmark Surface" title="What the mutator is operating on">
+        <Panel kicker="Code" title="Current surface">
           {currentCode ? (
-            <pre className="max-h-72 overflow-auto rounded-3xl border border-white/8 bg-black/25 p-5 text-xs leading-6 text-white/75">
-              {currentCode}
-            </pre>
+            <pre className="max-h-72 overflow-auto rounded-3xl border border-white/8 bg-black/25 p-5 text-xs leading-6 text-white/75">{currentCode}</pre>
           ) : (
-            <p className="text-sm leading-7 text-white/55">No benchmark code snapshot yet. The classic status endpoint will populate this once the performer is initialized.</p>
+            <p className="text-sm leading-7 text-white/55">No code.</p>
           )}
         </Panel>
       </div>
 
-      <Panel kicker="Live Metrics" title="Mutation evidence at a glance">
+      <Panel kicker="Metrics" title="Current state">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <ScoreBar label="Generation" value={agent?.generation ?? 0} />
           <ScoreBar label="Fitness" value={Math.round((agent?.fitness_score ?? 0) * 100)} />
           <ScoreBar label="Mutations" value={Math.min((agent?.mutation_count ?? 0) * 10, 100)} />
           <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
             <div className="flex items-center justify-between gap-4">
-              <span className="section-eyebrow">Run State</span>
-              <StatusPill tone={running ? "active" : "idle"}>{running ? "Live" : "Standby"}</StatusPill>
+              <span className="section-eyebrow">State</span>
+              <StatusPill tone={running ? "active" : "idle"}>{running ? "Live" : "Idle"}</StatusPill>
             </div>
-            <p className={`mt-6 text-3xl font-semibold ${theme.accentText}`}>{running ? "Evolving" : "Idle"}</p>
-            <p className="mt-2 text-sm leading-6 text-white/55">Fitness remains the decision signal. The workbench will only accept a mutation after sandbox proof.</p>
+            <p className={`mt-6 text-3xl font-semibold ${theme.accentText}`}>{running ? "Running" : "Ready"}</p>
           </div>
         </div>
       </Panel>
 
-      <Panel kicker="Recent Decisions" title="Mutation trace highlights">
+      <Panel kicker="Events" title="Recent">
         <TraceMiniList trace={dashboard.derived.currentTrace} />
       </Panel>
     </>
@@ -253,29 +215,24 @@ function ArenaSection({ dashboard }: { dashboard: EvolvexDashboardController }) 
 
   return (
     <>
-      <ModeBrief dashboard={dashboard} />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Panel kicker="Run Controls" title="Arena challenge run" className={theme.panel}>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <Panel kicker="Arena" title="Run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Rounds" value={arenaRounds} min={1} max={50} onChange={dashboard.controls.setArenaRounds} />
             <div className="flex flex-wrap gap-3">
               <PrimaryButton className={theme.button} disabled={running} onClick={dashboard.actions.startArena}>
-                {running ? "Arena Live" : "Start Arena"}
+                {running ? "Running" : "Start"}
               </PrimaryButton>
-              {running ? <SecondaryButton onClick={dashboard.actions.stopArena}>Stop Run</SecondaryButton> : null}
+              {running ? <SecondaryButton onClick={dashboard.actions.stopArena}>Stop</SecondaryButton> : null}
               <SecondaryButton disabled={running} onClick={dashboard.actions.resetArena} className={theme.buttonMuted}>
-                Reset Solver
+                Reset
               </SecondaryButton>
-              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear Trace</SecondaryButton>
+              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear</SecondaryButton>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-7 text-white/55">
-            Arena surfaces not only who wins, but how the solver progresses, what language it invents, and whether communication becomes more efficient.
-          </p>
         </Panel>
 
-        <Panel kicker="Stage Ladder" title="Solver progression">
+        <Panel kicker="Stages" title="Ladder">
           {solver ? (
             <div className="space-y-4">
               <div className="grid gap-2 md:grid-cols-4">
@@ -298,41 +255,36 @@ function ArenaSection({ dashboard }: { dashboard: EvolvexDashboardController }) 
                 {[0, 1, 2].map((index) => (
                   <span key={index} className={`h-2 flex-1 rounded-full ${index < solver.consecutive_wins ? "bg-violet-300" : "bg-white/10"}`} />
                 ))}
-                <span className="ml-2 text-sm text-white/55">
-                  {solver.wins_to_next_stage > 0 ? `${solver.wins_to_next_stage} wins to next stage` : "Top stage reached"}
-                </span>
+                <span className="ml-2 text-sm text-white/55">{solver.wins_to_next_stage > 0 ? `${solver.wins_to_next_stage} to next` : "max"}</span>
               </div>
             </div>
           ) : (
-            <p className="text-sm leading-7 text-white/55">The solver snapshot appears here once the arena status endpoint reports a stage and record.</p>
+            <p className="text-sm leading-7 text-white/55">No solver.</p>
           )}
         </Panel>
       </div>
 
-      <Panel kicker="Arena Telemetry" title="Performance, progression, and compression">
+      <Panel kicker="Metrics" title="Current state">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <ScoreBar label="Wins" value={(solver?.total_wins ?? 0) * 10} />
           <ScoreBar label="Losses" value={(solver?.total_losses ?? 0) * 10} />
           <ScoreBar label="Generation" value={(solver?.generation ?? 0) * 10} />
           <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
             <span className="section-eyebrow">Compression</span>
-            <p className={`mt-4 text-3xl font-semibold ${theme.accentText}`}>
-              {latestCompression === null ? "—" : formatPercent(latestCompression)}
-            </p>
+            <p className={`mt-4 text-3xl font-semibold ${theme.accentText}`}>{latestCompression === null ? "—" : formatPercent(latestCompression)}</p>
             <div className="mt-3">
               <CompressionSparkline history={protocol?.round_history ?? []} />
             </div>
           </div>
           <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-            <span className="section-eyebrow">Run State</span>
-            <p className={`mt-4 text-3xl font-semibold ${theme.accentText}`}>{running ? "Battling" : "Standby"}</p>
-            <p className="mt-2 text-sm text-white/55">{solver ? `${solver.total_wins + solver.total_losses} adjudicated rounds` : "No rounds yet"}</p>
+            <span className="section-eyebrow">State</span>
+            <p className={`mt-4 text-3xl font-semibold ${theme.accentText}`}>{running ? "Live" : "Idle"}</p>
           </div>
         </div>
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
-        <Panel kicker="Emergent Protocol" title="Vocabulary and utilization">
+        <Panel kicker="Protocol" title="Tokens">
           {protocol?.vocabulary.length ? (
             <div className="flex flex-wrap gap-2">
               {protocol.vocabulary.map((entry) => (
@@ -350,11 +302,11 @@ function ArenaSection({ dashboard }: { dashboard: EvolvexDashboardController }) 
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-white/55">No protocol tokens yet. Once the solver and challenger compress communication, tokens will surface here.</p>
+            <p className="text-sm leading-7 text-white/55">No protocol.</p>
           )}
         </Panel>
 
-        <Panel kicker="Recent Arena Signals" title="What changed most recently">
+        <Panel kicker="Events" title="Recent">
           <TraceMiniList trace={dashboard.derived.currentTrace} />
         </Panel>
       </div>
@@ -381,164 +333,123 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
 
   return (
     <>
-      <Panel kicker="Hero Run" title="A staged autonomy experiment with receipts" className={theme.panel}>
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-          <div className="space-y-5">
-            <p className="text-sm leading-7 text-white/72">
-              Bootstrap is the one to demo. Two peer agents begin with messaging and scratch space only, then have to
-              earn files, repo access, execution, shell, and research by coordinating well enough to move up the ladder.
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-white/55">
-              <StatusPill tone={running ? "active" : bootstrapStatus?.completed ? "success" : "idle"}>
-                {running ? "Bootstrap live" : bootstrapStatus?.completed ? "Completed run" : "Ready to run"}
-              </StatusPill>
-              {bootstrapStatus?.resumable && !running ? <StatusPill tone="warning">Resume available</StatusPill> : null}
-              <span className="signal-pill border-white/10 bg-white/5 text-white/65">
-                Round {bootstrapStatus?.round ?? 0}
-                {bootstrapStatus?.target_rounds ? ` / ${bootstrapStatus.target_rounds}` : ""}
-              </span>
-              <span className="signal-pill border-white/10 bg-white/5 text-white/65">
-                Cost {formatCurrency(bootstrapStatus?.run_cost_usd ?? 0)}
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-white/8">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 transition-all duration-500"
-                style={{ width: `${bootstrapProgress}%` }}
-              />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {BOOTSTRAP_STAGE_LABELS.map((stage) => {
-                const state =
-                  stage.id < (bootstrapStatus?.stage_id ?? 0)
-                    ? "complete"
-                    : stage.id === (bootstrapStatus?.stage_id ?? 0)
-                      ? "current"
-                      : "upcoming";
-                return (
-                  <div
-                    key={stage.name}
-                    className={`rounded-3xl border p-4 ${
-                      state === "complete"
-                        ? "border-emerald-300/20 bg-emerald-300/10"
-                        : state === "current"
-                          ? "border-sky-300/20 bg-sky-300/10"
-                          : "border-white/8 bg-black/20"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-white">{stage.name}</p>
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">{stage.id}</span>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-white/58">{stage.detail}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
-            <p className="section-eyebrow">What To Watch</p>
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="text-sm font-medium text-white">1. Shared protocol shows up</p>
-                <p className="mt-1 text-sm leading-6 text-white/58">Tokens appear, get adopted by the other peer, and only become stable after repeated use.</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">2. Capability has to be earned</p>
-                <p className="mt-1 text-sm leading-6 text-white/58">The broker only unlocks stronger tools when the current stage criteria are met.</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">3. Coordination leaves evidence</p>
-                <p className="mt-1 text-sm leading-6 text-white/58">Artifacts, broker decisions, and assessments stick around after the run instead of disappearing into the model haze.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Panel>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Panel kicker="Run Controls" title="Bootstrap autonomy run" className={theme.panel}>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <Panel kicker="Bootstrap" title="Run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <NumberField label="Rounds" value={bootstrapRounds} min={1} max={50} onChange={dashboard.controls.setBootstrapRounds} />
             <div className="flex flex-wrap gap-3">
               <PrimaryButton className={theme.button} disabled={running} onClick={dashboard.actions.startBootstrap}>
-                {running ? "Bootstrap Live" : bootstrapStatus?.resumable ? "Resume Bootstrap" : "Start Bootstrap"}
+                {running ? "Running" : bootstrapStatus?.resumable ? "Resume" : "Start"}
               </PrimaryButton>
-              {running ? <SecondaryButton onClick={dashboard.actions.stopBootstrap}>Stop Run</SecondaryButton> : null}
+              {running ? <SecondaryButton onClick={dashboard.actions.stopBootstrap}>Stop</SecondaryButton> : null}
               <SecondaryButton disabled={running} onClick={dashboard.actions.resetBootstrap} className={theme.buttonMuted}>
-                Reset Bootstrap
+                Reset
               </SecondaryButton>
-              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear Trace</SecondaryButton>
+              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear</SecondaryButton>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-7 text-white/55">
-            Bootstrap turns the dashboard into a monitored autonomy lab. You can watch capability unlocks, broker decisions,
-            protocol adoption, and artifact growth without asking the backend for anything new.
-          </p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-white/55">
+            <StatusPill tone={running ? "active" : bootstrapStatus?.completed ? "success" : "idle"}>{running ? "Live" : bootstrapStatus?.completed ? "Done" : "Ready"}</StatusPill>
+            {bootstrapStatus?.resumable && !running ? <StatusPill tone="warning">Resumable</StatusPill> : null}
+            <span className="signal-pill border-white/10 bg-white/5 text-white/65">
+              {bootstrapStatus?.round ?? 0}
+              {bootstrapStatus?.target_rounds ? ` / ${bootstrapStatus.target_rounds}` : ""}
+            </span>
+            <span className="signal-pill border-white/10 bg-white/5 text-white/65">{formatCurrency(bootstrapStatus?.run_cost_usd ?? 0)}</span>
+          </div>
         </Panel>
 
-        <Panel kicker="Live Objective" title={bootstrapStatus?.stage ?? "Bootstrap handshake"}>
-          <p className="text-sm leading-7 text-white/72">{bootstrapStatus?.objective ?? "Waiting for the broker to assign a live objective."}</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="section-eyebrow">Stable Tokens</p>
-              <p className="mt-2 text-2xl font-semibold text-emerald-100">{tokenBreakdown.stable}</p>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="section-eyebrow">Adopted Tokens</p>
-              <p className="mt-2 text-2xl font-semibold text-sky-100">{tokenBreakdown.adopted}</p>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="section-eyebrow">Compression</p>
-              <p className="mt-2 text-2xl font-semibold text-cyan-100">
-                {latestCompression === null ? "—" : formatPercent(latestCompression)}
-              </p>
-            </div>
+        <Panel kicker="Stages" title={bootstrapStatus?.stage ?? "Current stage"}>
+          <div className="h-2 overflow-hidden rounded-full bg-white/8">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 transition-all duration-500"
+              style={{ width: `${bootstrapProgress}%` }}
+            />
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(bootstrapStatus?.unlocked_capabilities ?? []).map((capability) => (
-              <span key={capability} className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-sky-100">
-                {capability}
-              </span>
-            ))}
-            {(bootstrapStatus?.unlocked_capabilities ?? []).length === 0 ? (
-              <span className="text-sm text-white/45">Capabilities will appear here as the curriculum advances.</span>
-            ) : null}
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {BOOTSTRAP_STAGE_LABELS.map((stage, index) => {
+              const state =
+                index < (bootstrapStatus?.stage_id ?? 0) ? "complete" : index === (bootstrapStatus?.stage_id ?? 0) ? "current" : "upcoming";
+              return (
+                <div
+                  key={stage}
+                  className={`rounded-3xl border p-4 ${
+                    state === "complete"
+                      ? "border-emerald-300/20 bg-emerald-300/10"
+                      : state === "current"
+                        ? "border-sky-300/20 bg-sky-300/10"
+                        : "border-white/8 bg-black/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">{stage}</p>
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">{index}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Panel>
       </div>
 
-      <Panel kicker="Peer Telemetry" title="Who is contributing to the protocol?">
-        <div className="grid gap-4 xl:grid-cols-2">
-          {bootstrapPeers.length ? (
-            bootstrapPeers.map((peer) => (
-              <div key={peer.name} className="rounded-[28px] border border-white/8 bg-black/20 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-lg font-semibold text-white">{peer.name}</p>
-                    <p className="text-sm text-white/45">Generation {peer.generation}</p>
-                  </div>
-                  <StatusPill tone="active">{peer.message_count} messages</StatusPill>
-                </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <ScoreBar label="Contribution" value={Math.round(peer.contribution_score * 100)} />
-                  <ScoreBar label="Dependency" value={Math.round(peer.dependency_score * 100)} />
-                  <ScoreBar label="Accepted" value={Math.min(peer.accepted_proposals * 20, 100)} />
-                </div>
-                <p className="mt-4 text-sm leading-7 text-white/55">
-                  Cost so far: {formatCurrency(peer.total_cost_usd)}{peer.cached_prompt_tokens ? ` · cached prompt tokens ${peer.cached_prompt_tokens}` : ""}
-                </p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Panel kicker="Objective" title={bootstrapStatus?.stage ?? "Bootstrap"}>
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-white/72">{bootstrapStatus?.objective ?? "No objective."}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="section-eyebrow">Stable</p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-100">{tokenBreakdown.stable}</p>
               </div>
-            ))
-          ) : (
-            <p className="text-sm leading-7 text-white/55">Peer snapshots will appear once bootstrap status is available.</p>
-          )}
-        </div>
-      </Panel>
+              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="section-eyebrow">Adopted</p>
+                <p className="mt-2 text-2xl font-semibold text-sky-100">{tokenBreakdown.adopted}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="section-eyebrow">Compression</p>
+                <p className="mt-2 text-2xl font-semibold text-cyan-100">{latestCompression === null ? "—" : formatPercent(latestCompression)}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(bootstrapStatus?.unlocked_capabilities ?? []).map((capability) => (
+                <span key={capability} className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-sky-100">
+                  {capability}
+                </span>
+              ))}
+              {(bootstrapStatus?.unlocked_capabilities ?? []).length === 0 ? <span className="text-sm text-white/45">No unlocked capabilities.</span> : null}
+            </div>
+          </div>
+        </Panel>
+
+        <Panel kicker="Peers" title="Telemetry">
+          <div className="grid gap-4 xl:grid-cols-2">
+            {bootstrapPeers.length ? (
+              bootstrapPeers.map((peer) => (
+                <div key={peer.name} className="rounded-[28px] border border-white/8 bg-black/20 p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-lg font-semibold text-white">{peer.name}</p>
+                      <p className="text-sm text-white/45">Gen {peer.generation}</p>
+                    </div>
+                    <StatusPill tone="active">{peer.message_count}</StatusPill>
+                  </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    <ScoreBar label="Contribution" value={Math.round(peer.contribution_score * 100)} />
+                    <ScoreBar label="Dependency" value={Math.round(peer.dependency_score * 100)} />
+                    <ScoreBar label="Accepted" value={Math.min(peer.accepted_proposals * 20, 100)} />
+                  </div>
+                  <p className="mt-4 text-sm leading-7 text-white/55">{formatCurrency(peer.total_cost_usd)}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm leading-7 text-white/55">No peer state.</p>
+            )}
+          </div>
+        </Panel>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-        <Panel kicker="Operating Language" title="Token adoption, stability, and meaning">
+        <Panel kicker="Protocol" title="Vocabulary">
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
               <p className="section-eyebrow">Pending</p>
@@ -573,19 +484,15 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
                     </StatusPill>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-white/68">{entry.meaning}</p>
-                  <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/40">
-                    {entry.proposed_by}
-                    {entry.accepted_by ? ` → ${entry.accepted_by}` : ""}
-                  </p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-white/55">No shared language yet. Proposed and stable tokens will appear here as soon as the peers start compressing coordination.</p>
+            <p className="text-sm leading-7 text-white/55">No protocol.</p>
           )}
         </Panel>
 
-        <Panel kicker="Artifacts" title="Outputs captured by the workbench">
+        <Panel kicker="Artifacts" title="Files">
           {bootstrapArtifacts.length ? (
             <div className="space-y-2">
               {bootstrapArtifacts.map((file) => (
@@ -598,13 +505,13 @@ function BootstrapSection({ dashboard }: { dashboard: EvolvexDashboardController
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-white/55">No artifacts yet. Generated files and trace outputs will populate this panel automatically.</p>
+            <p className="text-sm leading-7 text-white/55">No files.</p>
           )}
         </Panel>
       </div>
 
       {bootstrapStatus?.assessment ? (
-        <Panel kicker="Assessment" title="How well the peer system is coordinating">
+        <Panel kicker="Assessment" title="Scores">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <ScoreBar label="Overall" value={bootstrapStatus.assessment.overall} />
             <ScoreBar label="Collaboration" value={bootstrapStatus.assessment.collaboration} />
@@ -626,46 +533,40 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
 
   return (
     <>
-      <ModeBrief dashboard={dashboard} />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Panel kicker="Run Controls" title="Genesis autonomous build session" className={theme.panel}>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <Panel kicker="Genesis" title="Run" className={theme.panel}>
           <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
-            <NumberField label="Max Iterations" value={genesisMaxIter} min={10} max={2000} step={100} onChange={dashboard.controls.setGenesisMaxIter} />
+            <NumberField label="Iterations" value={genesisMaxIter} min={10} max={2000} step={100} onChange={dashboard.controls.setGenesisMaxIter} />
             <div className="flex flex-wrap gap-3">
               <PrimaryButton className={theme.button} disabled={running} onClick={dashboard.actions.startGenesis}>
-                {running ? "Genesis Live" : "Start Genesis"}
+                {running ? "Running" : "Start"}
               </PrimaryButton>
-              {running ? <SecondaryButton onClick={dashboard.actions.stopGenesis}>Stop Run</SecondaryButton> : null}
+              {running ? <SecondaryButton onClick={dashboard.actions.stopGenesis}>Stop</SecondaryButton> : null}
               <SecondaryButton disabled={running} onClick={dashboard.actions.resetGenesis} className={theme.buttonMuted}>
-                Reset Workspace
+                Reset
               </SecondaryButton>
-              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear Trace</SecondaryButton>
+              <SecondaryButton onClick={dashboard.actions.clearEvents}>Clear</SecondaryButton>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-7 text-white/55">
-            Genesis is the clearest operator story for the workbench: every tool invocation, file mutation, and assessment score becomes visible instead of hiding behind a single final output.
-          </p>
         </Panel>
 
-        <Panel kicker="Builder Telemetry" title="Current phase, cost, and output surface">
+        <Panel kicker="Telemetry" title="Current state">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <ScoreBar label="Phase" value={genesisStatus?.phase === "COMPLETE" ? 100 : genesisStatus ? 65 : 0} />
             <ScoreBar label="Iteration" value={Math.min((genesisStatus?.iteration ?? 0) * 10, 100)} />
             <ScoreBar label="Files" value={Math.min(genesisFiles.length * 18, 100)} />
             <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <span className="section-eyebrow">Observed Cost</span>
+              <span className="section-eyebrow">Cost</span>
               <p className={`mt-4 text-3xl font-semibold ${theme.accentText}`}>
                 {genesisStatus?.pricing_known === false ? "N/A" : formatCurrency(genesisStatus?.total_cost_usd ?? 0)}
               </p>
-              <p className="mt-2 text-sm leading-6 text-white/55">Pricing stays visible so a demo can explain capability in cost terms, not just screenshots.</p>
             </div>
           </div>
         </Panel>
       </div>
 
       {genesisStatus?.last_assessment ? (
-        <Panel kicker="Capability Assessment" title="How the builder rated its own performance">
+        <Panel kicker="Assessment" title="Scores">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <ScoreBar label="Overall" value={genesisStatus.last_assessment.overall} />
             <ScoreBar label="Reasoning" value={genesisStatus.last_assessment.reasoning} />
@@ -677,7 +578,7 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <Panel kicker="Workspace Files" title="Artifacts under construction">
+        <Panel kicker="Workspace" title="Files">
           {genesisFiles.length ? (
             <div className="space-y-2">
               {genesisFiles.map((file) => (
@@ -690,20 +591,20 @@ function GenesisSection({ dashboard }: { dashboard: EvolvexDashboardController }
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-white/55">No workspace files yet. Genesis will populate this panel as soon as it starts writing into the sandbox.</p>
+            <p className="text-sm leading-7 text-white/55">No files.</p>
           )}
         </Panel>
 
-        <Panel kicker="Recent Genesis Signals" title="Tool results and phase changes">
+        <Panel kicker="Events" title="Recent">
           <TraceMiniList trace={dashboard.derived.currentTrace} />
         </Panel>
       </div>
 
-      <Panel kicker="Recent Narrative" title="BUILD_LOG trace">
+      <Panel kicker="Narrative" title="Build log">
         {genesisNarrative ? (
           <pre className="max-h-72 overflow-auto rounded-3xl border border-white/8 bg-black/25 p-5 text-xs leading-6 text-white/72">{genesisNarrative}</pre>
         ) : (
-          <p className="text-sm leading-7 text-white/55">The builder narrative will stream here when Genesis writes BUILD_LOG updates.</p>
+          <p className="text-sm leading-7 text-white/55">No log.</p>
         )}
       </Panel>
     </>

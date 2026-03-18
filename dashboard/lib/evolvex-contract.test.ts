@@ -317,7 +317,7 @@ describe("overview normalization", () => {
     const bootstrapView = buildDevelopmentView("bootstrap", makeState());
     const genesisView = buildDevelopmentView("genesis", makeState());
 
-    expect(bootstrapView.title).toContain("constrained peers");
+    expect(bootstrapView.title).toBe("Negotiation");
     expect(bootstrapView.progressValueLabel).toBe("3/8");
     expect(bootstrapView.outputs.find((output) => output.label === "Artifacts captured")?.value).toBe("1");
     expect(bootstrapView.capabilities[0]).toMatchObject({
@@ -327,6 +327,6 @@ describe("overview normalization", () => {
 
     expect(genesisView.progressValueLabel).toBe("BUILD");
     expect(genesisView.gauges.find((gauge) => gauge.label === "Assessment")?.display).toBe("78");
-    expect(genesisView.constraints[1]).toContain("observed cost");
+    expect(genesisView.tension).toBe("Observed cost");
   });
 });

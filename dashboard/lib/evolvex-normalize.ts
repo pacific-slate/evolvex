@@ -252,7 +252,7 @@ function buildTimeline(mode: ModeKey, state: WorkbenchRawState): DevelopmentTime
         {
           id: "bootstrap-ready",
           label: state.bootstrapStatus?.stage ?? "Bootstrap ready",
-          summary: state.bootstrapStatus?.objective ?? "Peers are waiting for the first constrained objective and broker review.",
+          summary: state.bootstrapStatus?.objective ?? "Waiting for objective.",
           meta: "Bootstrap",
           tone: state.bootstrapStatus ? "active" : "idle",
           mode,
@@ -263,7 +263,7 @@ function buildTimeline(mode: ModeKey, state: WorkbenchRawState): DevelopmentTime
         {
           id: "arena-ready",
           label: state.solver?.stage_name ?? "Arena ready",
-          summary: state.solver ? "Solver state loaded and waiting for the next challenge." : "The solver will start at the first challenge as soon as the arena runs.",
+          summary: state.solver ? "Waiting for next challenge." : "Waiting for run.",
           meta: "Arena",
           tone: state.solver ? "muted" : "idle",
           mode,
@@ -274,7 +274,7 @@ function buildTimeline(mode: ModeKey, state: WorkbenchRawState): DevelopmentTime
         {
           id: "genesis-ready",
           label: state.genesisStatus?.phase ?? "Genesis ready",
-          summary: state.genesisNarrative ?? "The builder is idle until a new autonomous session is launched.",
+          summary: state.genesisNarrative ?? "Idle.",
           meta: "Genesis",
           tone: state.genesisStatus ? "muted" : "idle",
           mode,
@@ -285,7 +285,7 @@ function buildTimeline(mode: ModeKey, state: WorkbenchRawState): DevelopmentTime
         {
           id: "classic-ready",
           label: "Classic ready",
-          summary: "The mutation loop is waiting for a new checkpointed evolution run.",
+          summary: "Waiting for run.",
           meta: "Classic",
           tone: "idle",
           mode,
@@ -421,24 +421,17 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
       const safetyFailed = state.events.filter((event) => event.event === "sandbox_failed").length;
       const safetyRate = ratioPercent(safetyPassed, safetyPassed + safetyFailed);
 
-      title = "A checkpointed mutation loop trying to improve one measurable task.";
+      title = "Classic";
       summary = state.modeRunning.classic
         ? "The performer is benchmarking, mutating, and asking the sandbox to prove each improvement before it can land."
         : "Classic stays deliberately narrow: one benchmark surface, one fitness signal, and one sandbox gate between suggestion and change.";
-      objective = state.modeRunning.classic
-        ? "Find a higher-fitness mutation that beats the current performer and survives sandbox validation."
-        : "Launch a safe benchmark run and establish the next mutation sequence.";
-      tension = "Nothing lands unless it improves the fitness target and clears the safety gate. Speed matters less than validated improvement.";
-      nextStep = state.modeRunning.classic
-        ? "Watch for the next analyzer recommendation, mutation proposal, and sandbox verdict."
-        : "Start the loop to turn the current benchmark surface into a live mutation program.";
+      objective = state.modeRunning.classic ? "Improve fitness" : "Ready";
+      tension = "Sandbox gate";
+      nextStep = state.modeRunning.classic ? "Await next mutation" : "Start run";
       progressLabel = "Mutation cycle";
       progressValue = totalCycles > 0 ? ratioPercent(currentCycle, totalCycles) : clampPercent((state.agent?.mutation_count ?? 0) * 15);
       progressValueLabel = totalCycles > 0 ? `${currentCycle}/${totalCycles}` : `${state.agent?.mutation_count ?? 0} applied`;
-      progressHelper =
-        totalCycles > 0
-          ? "Current position inside the active checkpointed run."
-          : "Applied mutations tracked on the current performer.";
+      progressHelper = totalCycles > 0 ? "Cycle progress" : "Applied mutations";
       gauges = [
         {
           label: "Fitness",
@@ -501,11 +494,7 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
           helper: "Most recent validation outcome from the mutation loop.",
         },
       ];
-      constraints = [
-        "No mutation is allowed to apply without sandbox proof.",
-        "Classic optimizes a single fitness signal rather than open-ended autonomy.",
-        "This loop does not expose external tools, research, or multi-agent coordination.",
-      ];
+      constraints = ["Sandbox required.", "Single fitness target.", "No external tools."];
       break;
     }
     case "arena": {
@@ -515,27 +504,21 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
         ? clampPercent((((state.solver.stage ?? 0) + (3 - (state.solver.wins_to_next_stage ?? 3)) / 3) / 4) * 100)
         : 0;
 
-      title = "A solver climbing a challenge ladder by changing how it reasons.";
+      title = "Arena";
       summary = state.modeRunning.arena
         ? "The solver is trying to beat an adversarial challenger, compress its protocol, and prove it belongs at the next cognitive stage."
         : "Arena makes progression legible. It shows wins, losses, stage shifts, and protocol efficiency instead of flattening capability into one score.";
       objective = state.solver
         ? state.solver.wins_to_next_stage > 0
-          ? `Win ${state.solver.wins_to_next_stage} more adjudicated rounds to reach the next stage.`
-          : "Hold the top stage and keep the protocol coherent under stronger pressure."
-        : "Start the arena and place the solver on the first challenge ladder.";
-      tension = "The solver cannot brute-force progress. It needs consecutive wins while the challenger keeps raising difficulty and communication costs.";
-      nextStep = state.modeRunning.arena
-        ? "Watch the next challenge, solver attempt, and protocol compression signal."
-        : "Run the arena to establish the solver's current stage and failure pattern.";
+          ? `${state.solver.wins_to_next_stage} wins to next stage`
+          : "Top stage"
+        : "Ready";
+      tension = "Adversarial pressure";
+      nextStep = state.modeRunning.arena ? "Await next round" : "Start run";
       progressLabel = "Cognitive ladder";
       progressValue = stageProgress;
       progressValueLabel = state.solver?.stage_name ?? "Ready";
-      progressHelper = state.solver
-        ? state.solver.wins_to_next_stage > 0
-          ? `${state.solver.wins_to_next_stage} wins remain before stage-up.`
-          : "Top stage reached."
-        : "No solver progression recorded yet.";
+      progressHelper = state.solver ? (state.solver.wins_to_next_stage > 0 ? `${state.solver.wins_to_next_stage} to next` : "Max stage") : "No progress";
       gauges = [
         {
           label: "Win rate",
@@ -586,11 +569,7 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
           helper: "Active reasoning stage for the solver.",
         },
       ];
-      constraints = [
-        "Stage progression requires consecutive wins instead of total volume.",
-        "The challenger can raise task difficulty even when the solver is improving.",
-        "Protocol efficiency matters alongside raw task success.",
-      ];
+      constraints = ["Consecutive wins required.", "Challenger escalates.", "Protocol matters."];
       break;
     }
     case "bootstrap": {
@@ -611,30 +590,24 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
         : clampPercent(((state.bootstrapStatus?.stage_id ?? 0) / (BOOTSTRAP_STAGE_LABELS.length - 1)) * 100);
       const nextStage = BOOTSTRAP_STAGE_LABELS[(state.bootstrapStatus?.stage_id ?? 0) + 1] ?? null;
 
-      title = "Two constrained peers trying to invent enough shared structure to earn power.";
+      title = state.bootstrapStatus?.stage ?? "Bootstrap";
       summary = state.modeRunning.bootstrap
         ? "Bootstrap is live: the peers are negotiating, producing artifacts, and asking the broker for stronger capabilities one stage at a time."
         : "Bootstrap starts with almost nothing on purpose. The point is to watch coordination, language, and tool access emerge under pressure instead of assuming them up front.";
-      objective = state.bootstrapStatus?.objective ?? "Invent a shared operating language and justify the next capability unlock.";
+      objective = state.bootstrapStatus?.objective ?? "Await objective";
       tension =
         unlocked.length > 0
-          ? `The pair has ${unlocked.length} brokered capabilities, but the next unlock still depends on cleaner protocol and durable evidence.`
-          : "The pair is still beneath the first meaningful unlock and has to prove it can coordinate with almost nothing.";
-      nextStep = state.modeRunning.bootstrap
-        ? "Watch for token adoption, artifact changes, and broker decisions that justify the next unlock."
-        : state.bootstrapStatus?.resumable
-          ? "Resume the run and inspect whether the existing protocol can support the next broker review."
-          : "Start Bootstrap to watch the peers build protocol, artifacts, and capability access from zero.";
+          ? `${unlocked.length} capabilities unlocked`
+          : "No elevated capabilities";
+      nextStep = state.modeRunning.bootstrap ? "Await broker decision" : state.bootstrapStatus?.resumable ? "Resume run" : "Start run";
       progressLabel = "Curriculum";
       progressValue = progressByRound;
       progressValueLabel = state.bootstrapStatus?.target_rounds
         ? `${state.bootstrapStatus?.round ?? 0}/${state.bootstrapStatus.target_rounds}`
         : state.bootstrapStatus?.stage ?? "Ready";
-      progressHelper = state.bootstrapStatus?.target_rounds
-        ? "Current position in the staged autonomy curriculum."
-        : "Current broker-reviewed stage.";
+      progressHelper = state.bootstrapStatus?.target_rounds ? "Round progress" : "Current stage";
       budgetValue = buildObservedSpend(state.bootstrapStatus?.run_cost_usd, true);
-      budgetHelper = "Observed run cost only. The frontend does not yet receive a hard spend cap.";
+      budgetHelper = "Observed only";
       gauges = [
         {
           label: "Stable language",
@@ -662,14 +635,12 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
         ...unlocked.slice(0, 4).map((capability) => ({
           label: capability,
           state: "active" as const,
-          helper: "Currently granted by the broker.",
+          helper: "Granted.",
         })),
         {
           label: nextStage ? `Next gate: ${nextStage}` : "Curriculum ceiling",
           state: nextStage ? ("emerging" as const) : ("active" as const),
-          helper: nextStage
-            ? "Further capability access depends on another clean stage review."
-            : "The current stage is already at the top of the defined curriculum.",
+          helper: nextStage ? "Await review." : "Max stage.",
         },
       ];
       outputs = [
@@ -690,13 +661,9 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
         },
       ];
       constraints = [
-        "Peers cannot bypass brokered capability review.",
-        (state.bootstrapStatus?.stage_id ?? 0) < 3
-          ? "Repo access and execution remain withheld until later curriculum stages."
-          : "Execution is available, but stronger action still depends on broker approval.",
-        (state.bootstrapStatus?.stage_id ?? 0) < 5
-          ? "Outside research stays blocked until the research stage unlocks."
-          : "Research is unlocked, but it still has to justify itself through durable outputs.",
+        "Broker-gated actions.",
+        (state.bootstrapStatus?.stage_id ?? 0) < 3 ? "Repo and execution withheld." : "Execution still brokered.",
+        (state.bootstrapStatus?.stage_id ?? 0) < 5 ? "Research blocked." : "Research still brokered.",
       ];
       break;
     }
@@ -707,25 +674,19 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
       const iterationDepth = clampPercent((state.genesisStatus?.iteration ?? 0) * 8);
       const currentPhase = state.genesisStatus?.phase ?? "RESEARCH";
 
-      title = "A builder rewriting its workspace while judging whether it is actually improving.";
+      title = state.genesisStatus?.phase ?? "Genesis";
       summary = state.modeRunning.genesis
         ? "Genesis is live: the builder is moving through research, planning, implementation, and assessment while leaving a visible artifact trail."
         : "Genesis is the clearest path to a self-constructing agent surface: tools, files, cost, and self-assessment stay inspectable instead of collapsing into one final answer.";
-      objective = state.modeRunning.genesis
-        ? `Continue iterating through ${currentPhase.toLowerCase()} while increasing the quality of the workspace outputs.`
-        : "Launch a new build session and turn the workspace into an inspectable development trace.";
-      tension = "The builder only earns credibility through tangible files, instrumented tool calls, and assessments that do not collapse under inspection.";
-      nextStep = state.modeRunning.genesis
-        ? "Watch for phase changes, file mutations, and assessment updates that indicate genuine forward motion."
-        : "Start Genesis to see whether the builder can turn its reasoning into durable outputs.";
+      objective = state.modeRunning.genesis ? currentPhase : "Ready";
+      tension = "Observed cost";
+      nextStep = state.modeRunning.genesis ? "Await file or phase change" : "Start run";
       progressLabel = "Build loop";
       progressValue = state.genesisStatus?.phase === "COMPLETE" ? 100 : phaseProgress;
       progressValueLabel = currentPhase;
-      progressHelper = state.genesisStatus
-        ? `Iteration ${state.genesisStatus.iteration} in the current autonomous session.`
-        : "No autonomous build session is active.";
+      progressHelper = state.genesisStatus ? `Iteration ${state.genesisStatus.iteration}` : "No run";
       budgetValue = buildObservedSpend(state.genesisStatus?.total_cost_usd, state.genesisStatus?.pricing_known);
-      budgetHelper = "Observed spend only. No hard token budget has been surfaced to the frontend yet.";
+      budgetHelper = "Observed only";
       gauges = [
         {
           label: "Assessment",
@@ -776,11 +737,7 @@ export function buildDevelopmentView(mode: ModeKey, state: WorkbenchRawState): D
           helper: "Registry-backed outputs already visible to the operator.",
         },
       ];
-      constraints = [
-        "Progress only counts when tool calls and file mutations leave durable evidence.",
-        "The frontend currently shows observed cost rather than a remaining budget runway.",
-        "Long-term autonomy still depends on outputs escaping the sandbox and entering the growth ledger.",
-      ];
+      constraints = ["Tool and file evidence required.", "Observed cost only.", "Outputs must leave workspace."];
       break;
     }
   }
