@@ -82,6 +82,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-width: 0;
   border-radius: 2rem;
   border: 1px solid var(--panel-border);
   background:
@@ -96,6 +97,7 @@ a {
 .mode-rail-card,
 .trace-row,
 .signal-pill {
+  min-width: 0;
   backdrop-filter: blur(18px);
 }
 
@@ -127,6 +129,27 @@ a {
   padding: 1rem;
 }
 
+.auto-grid-compact,
+.auto-grid-standard,
+.auto-grid-wide {
+  display: grid;
+}
+
+.auto-grid-compact {
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
+.auto-grid-standard {
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+
+.auto-grid-wide {
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
 .signal-pill {
   display: inline-flex;
   align-items: center;
@@ -156,5 +179,12 @@ a {
   .metric-card,
   .trace-row {
     border-radius: 1.25rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .signal-pill,
+  .section-eyebrow {
+    letter-spacing: 0.14em;
   }
 }

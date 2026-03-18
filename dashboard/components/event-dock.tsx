@@ -34,7 +34,7 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setScope("current")}
-            className={`rounded-full px-3 py-2 text-xs uppercase tracking-[0.18em] transition ${
+            className={`w-full rounded-full px-3 py-2 text-xs uppercase tracking-[0.18em] transition sm:w-auto ${
               scope === "current" ? "border border-white/18 bg-white/10 text-white" : "border border-white/10 bg-transparent text-white/45 hover:text-white/75"
             }`}
           >
@@ -42,7 +42,7 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
           </button>
           <button
             onClick={() => setScope("all")}
-            className={`rounded-full px-3 py-2 text-xs uppercase tracking-[0.18em] transition ${
+            className={`w-full rounded-full px-3 py-2 text-xs uppercase tracking-[0.18em] transition sm:w-auto ${
               scope === "all" ? "border border-white/18 bg-white/10 text-white" : "border border-white/10 bg-transparent text-white/45 hover:text-white/75"
             }`}
           >
@@ -50,7 +50,7 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
           </button>
           <button
             onClick={dashboard.actions.clearEvents}
-            className="rounded-full border border-white/10 px-3 py-2 text-xs uppercase tracking-[0.18em] text-white/55 transition hover:border-white/25 hover:text-white"
+            className="w-full rounded-full border border-white/10 px-3 py-2 text-xs uppercase tracking-[0.18em] text-white/55 transition hover:border-white/25 hover:text-white sm:w-auto"
           >
             Clear trace
           </button>
@@ -64,7 +64,7 @@ export function EventDock({ dashboard }: { dashboard: EvolvexDashboardController
         <span className="signal-pill border-white/10 bg-white/5 text-white/65">{trace.length} entries</span>
       </div>
 
-      <div ref={scrollerRef} className="trace-shell max-h-[32rem] overflow-auto rounded-[28px] border border-white/8 bg-black/20 p-4">
+      <div ref={scrollerRef} className="trace-shell min-w-0 max-h-[32rem] overflow-auto rounded-[28px] border border-white/8 bg-black/20 p-4">
         {trace.length === 0 ? (
           <div className="grid min-h-72 place-items-center rounded-[24px] border border-dashed border-white/10 bg-white/[0.025] p-8">
             <div className="max-w-2xl text-center">
