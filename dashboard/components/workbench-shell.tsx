@@ -132,6 +132,10 @@ export function WorkbenchShell({
   dock: ReactNode;
 }) {
   const theme = getModeTheme(mode);
+  const bootstrapCard = modeCards.find((card) => card.key === "bootstrap");
+  const supportingCards = modeCards.filter((card) => card.key !== "bootstrap");
+  const selectedModeIsBootstrap = mode === "bootstrap";
+  const latestSignal = overview.lastTrace;
 
   return (
     <main className="workbench-shell" data-mode={mode}>
@@ -146,17 +150,19 @@ export function WorkbenchShell({
                 <StatusPill tone={connected ? "success" : "danger"}>
                   {connected ? "Realtime stream connected" : "Realtime stream disconnected"}
                 </StatusPill>
-                <span className={`signal-pill ${theme.chip}`}>{definition.label} experiment selected</span>
+                <span className={`signal-pill ${selectedModeIsBootstrap ? theme.chip : "border-white/10 bg-white/5 text-white/70"}`}>
+                  {selectedModeIsBootstrap ? "Hero mode selected" : `${definition.label} support view`}
+                </span>
               </div>
               <div className="space-y-4">
-                <SectionEyebrow>Agent Evolution Workbench</SectionEyebrow>
+                <SectionEyebrow>Bootstrap Workbench</SectionEyebrow>
                 <h1 className="max-w-4xl text-balance font-display text-4xl uppercase leading-none tracking-[0.08em] text-white md:text-6xl">
-                  Design, supervise, and compare autonomous improvement loops.
+                  Watch two agents figure out how to coordinate before they are trusted with real power.
                 </h1>
                 <p className="max-w-3xl text-balance text-base leading-8 text-white/70 md:text-lg">
-                  EvolveX turns four autonomy regimes into one operator surface: benchmark mutation, adversarial progression,
-                  protocol emergence, and autonomous building. The point is not to watch an agent run. The point is to make
-                  the safety gates, evidence trail, and behavioral change obvious in under a minute.
+                  Most agent demos start with full tool access and a lot of optimism. Bootstrap does the opposite. Two peer
+                  agents begin with messaging and scratch space only, then earn stronger capabilities as they form a shared
+                  protocol, produce artifacts, and survive review.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -166,31 +172,37 @@ export function WorkbenchShell({
               </div>
             </div>
 
-            <div className={`rounded-[28px] border bg-black/30 p-5 backdrop-blur-sm ${theme.border}`}>
-              <SectionEyebrow>Current Experiment Story</SectionEyebrow>
+            <div className={`rounded-[28px] border bg-black/30 p-5 backdrop-blur-sm ${selectedModeIsBootstrap ? theme.border : "border-white/10"}`}>
+              <SectionEyebrow>{selectedModeIsBootstrap ? "Why this is the demo" : "Supporting regime"}</SectionEyebrow>
               <h2 className="mt-3 text-balance font-display text-2xl uppercase tracking-[0.08em] text-white">
-                {definition.heroTitle}
+                {selectedModeIsBootstrap ? "The point is to see whether coordination actually forms." : `${definition.label} is here as a comparison mode.`}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-white/70">{definition.whatItIs}</p>
+              <p className="mt-4 text-sm leading-7 text-white/70">
+                {selectedModeIsBootstrap
+                  ? "Bootstrap is the product story for the turn-in: staged capability unlocks, brokered actions, protocol emergence, and artifacts that stay inspectable after the run."
+                  : `${definition.whatItIs} It matters because it gives Bootstrap a baseline or comparison point instead of making the whole site feel like one random pile of tabs.`}
+              </p>
               <div className="mt-6 flex flex-wrap gap-2">
-                {definition.audiences.map((audience) => (
+                {(selectedModeIsBootstrap ? ["turn-in hero", "live operator evidence", "earned autonomy"] : definition.audiences).map((audience) => (
                   <span key={audience} className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/60">
                     {audience}
                   </span>
                 ))}
               </div>
               <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                <SectionEyebrow>Latest Signal</SectionEyebrow>
-                {overview.lastTrace ? (
+                <SectionEyebrow>{selectedModeIsBootstrap ? "Latest Signal" : "Current View"}</SectionEyebrow>
+                {latestSignal ? (
                   <div className="mt-3 space-y-2">
                     <div className="flex items-center justify-between gap-4">
-                      <p className="text-sm font-medium text-white">{overview.lastTrace.label}</p>
-                      <StatusPill tone={overview.lastTrace.tone}>{overview.lastTrace.mode}</StatusPill>
+                      <p className="text-sm font-medium text-white">{latestSignal.label}</p>
+                      <StatusPill tone={latestSignal.tone}>{latestSignal.mode}</StatusPill>
                     </div>
-                    <p className="text-sm leading-6 text-white/65">{overview.lastTrace.summary}</p>
+                    <p className="text-sm leading-6 text-white/65">{latestSignal.summary}</p>
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm leading-6 text-white/55">No live trace yet. Start a mode to watch the workbench narrate system behavior.</p>
+                  <p className="mt-3 text-sm leading-6 text-white/55">
+                    No live trace yet. Start Bootstrap and the page will shift from thesis to evidence.
+                  </p>
                 )}
               </div>
             </div>
@@ -211,7 +223,7 @@ export function WorkbenchShell({
           <div className="mt-8 grid gap-3 lg:grid-cols-4">
             {SYSTEM_STORY_STEPS.map((step, index) => (
               <div key={step} className="rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-4">
-                <SectionEyebrow>Workflow {index + 1}</SectionEyebrow>
+                <SectionEyebrow>Watch {index + 1}</SectionEyebrow>
                 <p className="mt-3 text-sm leading-6 text-white/72">{step}</p>
               </div>
             ))}
@@ -220,9 +232,45 @@ export function WorkbenchShell({
 
         <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
           <aside className="space-y-4">
-            <Panel kicker="Experiment Types" title="Run four autonomy regimes from one rail">
+            <Panel kicker="Experiment Rail" title="Hero mode first, supporting regimes second">
               <div className="space-y-3">
-                {modeCards.map((card) => {
+                {bootstrapCard ? (() => {
+                  const cardTheme = getModeTheme(bootstrapCard.key);
+                  const active = bootstrapCard.key === mode;
+                  return (
+                    <button
+                      key={bootstrapCard.key}
+                      onClick={() => onModeChange(bootstrapCard.key)}
+                      className={`mode-rail-card w-full text-left transition ${
+                        active ? `${cardTheme.panel} ${cardTheme.border} ring-1 ring-inset ring-white/10` : "border-white/8 bg-white/[0.03] hover:border-white/18"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium tracking-tight text-white">{bootstrapCard.label}</p>
+                            <span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-sky-100">
+                              Hero
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm leading-6 text-white/55">{bootstrapCard.strapline}</p>
+                        </div>
+                        <StatusPill tone={bootstrapCard.statusTone}>{bootstrapCard.isRunning ? "Live" : "Standby"}</StatusPill>
+                      </div>
+                      <div className="mt-4 flex items-end justify-between gap-4">
+                        <div>
+                          <p className={`text-sm font-medium ${cardTheme.accentText}`}>{bootstrapCard.statusLabel}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/45">{bootstrapCard.evidenceLabel}</p>
+                        </div>
+                        <span className="text-xs uppercase tracking-[0.18em] text-white/35">{bootstrapCard.activityCount} signals</span>
+                      </div>
+                    </button>
+                  );
+                })() : null}
+                <div className="pt-2">
+                  <SectionEyebrow>Supporting Experiments</SectionEyebrow>
+                </div>
+                {supportingCards.map((card) => {
                   const cardTheme = getModeTheme(card.key);
                   const active = card.key === mode;
                   return (
@@ -238,7 +286,7 @@ export function WorkbenchShell({
                           <p className="font-medium tracking-tight text-white">{card.label}</p>
                           <p className="mt-1 text-sm leading-6 text-white/55">{card.strapline}</p>
                         </div>
-                        <StatusPill tone={card.statusTone}>{card.isRunning ? "Live" : "Standby"}</StatusPill>
+                        <StatusPill tone={card.statusTone}>{card.isRunning ? "Live" : "Support"}</StatusPill>
                       </div>
                       <div className="mt-4 flex items-end justify-between gap-4">
                         <div>

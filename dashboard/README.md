@@ -1,11 +1,11 @@
 # EvolveX Dashboard
 
-This app is the submission-grade frontend for the EvolveX workbench. It turns the backend's existing REST and WebSocket surfaces into a product story about supervised agent evolution rather than a generic developer console.
+This app is the submission-grade frontend for the EvolveX workbench. For turn-in purposes, it is intentionally centered on `Bootstrap`: the staged multi-agent coordination mode with brokered capability unlocks and visible protocol formation.
 
 ## What The Frontend Does
 
-- Positions the app as an agent evolution workbench
-- Presents Classic, Arena, Bootstrap, and Genesis as experiment types
+- Positions the app as a Bootstrap-first agent workbench
+- Presents Classic, Arena, and Genesis as supporting experiment regimes
 - Normalizes inconsistent backend payloads into readable UI state
 - Keeps the live event stream readable by formatting traces instead of dumping raw JSON
 - Explains the product even when no run is active
