@@ -31,10 +31,25 @@ pkill -f "nohup npm start -- -p \$PORT" 2>/dev/null || true
 pkill -f "npm start -p \$PORT" 2>/dev/null || true
 pkill -f "next start -p \$PORT" 2>/dev/null || true
 
-pids=\$(lsof -tiTCP:"\$PORT" -sTCP:LISTEN || true)
+sleep 1
+
+pids=\$(ss -ltnp 2>/dev/null | awk -v port=":\$PORT" '
+  index(\$0, port) {
+    while (match(\$0, /pid=[0-9]+/)) {
+      print substr(\$0, RSTART + 4, RLENGTH - 4)
+      \$0 = substr(\$0, RSTART + RLENGTH)
+    }
+  }
+' | sort -u)
 if [ -n "\$pids" ]; then
   kill -9 \$pids
   sleep 2
+fi
+
+if ss -ltnp 2>/dev/null | grep -q ":\$PORT "; then
+  echo "port \$PORT is still occupied after shutdown attempt" >&2
+  ss -ltnp | grep ":\$PORT " >&2 || true
+  exit 1
 fi
 
 nohup npm start -- -p "\$PORT" >"\$REMOTE_LOG" 2>&1 </dev/null &
